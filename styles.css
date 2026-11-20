@@ -43,8 +43,6 @@ h3{font-size:14px;margin-bottom:10px}
 .btn-outline-light{border:1px solid #ffffff55;color:#fff;background:#ffffff10}
 .btn-quiet{background:transparent;color:#526764;border:1px solid #d9e3e1}
 .btn-danger{background:#c83e48;color:#fff}
-.btn-danger-outline{border:1px solid #e58c91;color:#ffd5d7;background:#9f313a30}
-.btn-danger-outline:hover{background:#c83e48;color:#fff}
 .btn-wide{width:100%;margin-top:8px}
 .section-heading{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin:24px 0 12px}
 .section-heading h2,.section-heading h1{margin:0}
@@ -74,8 +72,7 @@ textarea{resize:vertical}
 .light-text{color:#7fe0ce}
 .muted-light{color:#bfd4d0;font-size:12px;margin-bottom:12px}
 .tournament-banner h1{font-size:28px}
-.tournament-top-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}
-.tournament-top-actions #openDeleteTournamentBtn{margin-left:auto}
+.tournament-top-actions{display:flex;gap:8px;margin-top:15px}
 .pill-tabs{display:flex;gap:5px;align-items:center;background:#e6eeec;padding:4px;border-radius:12px;overflow-x:auto;scrollbar-width:none}
 .pill-tabs::-webkit-scrollbar{display:none}
 .pill-tabs button{white-space:nowrap;border:0;background:transparent;border-radius:9px;padding:9px 13px;color:#60716e;font-size:11px;font-weight:900;min-height:36px}
@@ -215,8 +212,6 @@ footer{text-align:center;color:#8a9895;font-size:10px;padding:20px 10px 28px}
  .tournament-card{align-items:flex-start;flex-direction:column}
  .tournament-actions{width:100%}
  .tournament-actions .btn{flex:1}
- .tournament-top-actions{display:grid;grid-template-columns:1fr 1fr}
- .tournament-top-actions #openDeleteTournamentBtn{grid-column:1/-1;width:100%;margin:0}
  .form-grid{grid-template-columns:1fr 1fr;gap:8px}
  .tournament-tabs{top:var(--topbar-height)}
  .tournament-tabs button{padding:8px 10px;font-size:10px}
