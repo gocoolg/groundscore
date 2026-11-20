@@ -100,6 +100,11 @@
     <section id="tMembersPanel" class="tournament-panel hidden">
       <div class="section-heading"><div><h2>Players & scorers</h2><p class="muted">People who joined this event.</p></div></div>
       <div id="memberList" class="member-chips"></div>
+      <div class="danger-zone">
+        <div><span class="danger-eyebrow">DANGER ZONE</span><h3>Delete this tournament</h3>
+          <p>Remove this tournament, its matches, scorecards, deliveries, teams and members permanently.</p></div>
+        <button id="openDeleteTournamentBtn" class="btn btn-danger">Delete tournament</button>
+      </div>
     </section>
   </section>
 
@@ -303,6 +308,18 @@
   <div class="milestone-card"><div class="milestone-icon">🏏</div><div id="milestoneKicker" class="eyebrow">MILESTONE</div><div id="milestoneTitle" class="milestone-title">FIFTY!</div><div id="milestoneDetail" class="muted"></div><button id="milestoneClose" class="btn btn-primary">Continue</button></div>
 </div>
 <div id="toast" class="toast hidden" role="status"></div>
+<div id="deleteTournamentSheet" class="sheet-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="deleteTournamentHeading">
+  <div class="bottom-sheet delete-sheet">
+    <div class="sheet-grabber"></div>
+    <div class="sheet-heading"><div><span class="danger-eyebrow">PERMANENT ACTION</span><h2 id="deleteTournamentHeading">Delete tournament?</h2></div><button id="closeDeleteTournamentBtn" class="sheet-close" type="button" aria-label="Close">×</button></div>
+    <p class="delete-tournament-name" id="deleteTournamentName"></p>
+    <p class="delete-warning">This permanently deletes all matches, innings, ball-by-ball scores, match players, saved teams, squads and tournament members. This cannot be undone.</p>
+    <label>Type the tournament name to confirm<input id="deleteTournamentNameConfirm" type="text" autocomplete="off" placeholder="Exact tournament name"></label>
+    <label>Admin password<input id="deleteTournamentPassword" type="password" autocomplete="current-password" placeholder="Enter admin password"></label>
+    <p id="deleteTournamentError" class="form-error" role="alert"></p>
+    <div class="delete-actions"><button id="cancelDeleteTournamentBtn" class="btn btn-quiet" type="button">Cancel</button><button id="confirmDeleteTournamentBtn" class="btn btn-danger" type="button">Delete permanently</button></div>
+  </div>
+</div>
 <div id="appLoader" class="app-loader hidden" role="status" aria-live="polite" aria-label="Loading">
   <div class="loader-card">
     <div class="cricket-loader" aria-hidden="true"><span class="loader-ball"></span><span class="loader-stumps"><i></i><i></i><i></i><b></b></span></div>
