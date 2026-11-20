@@ -1,99 +1,26 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0f766e">
-  <title>GroundScore — Cricket Scorer</title>
-  <link rel="stylesheet" href="styles.css">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f766e"><meta name="description" content="GroundScore — community cricket scoring and tournament tracking.">
+<title>GroundScore — Cricket Scorer</title><link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<header class="topbar">
-  <div><div class="brand">GroundScore</div><div class="tagline">Simple cricket scoring for your weekly game</div></div>
-  <button id="newMatchBtn" class="ghost hidden">New match</button>
-</header>
-
-<main class="container">
-  <div id="configNotice" class="notice hidden"></div>
-
-  <section id="setupView" class="card">
-    <h1>Start a match</h1>
-    <p class="muted">No account required. Enter your name so every scoring update is attributed to you.</p>
-    <div class="grid two">
-      <label>Scorer name<input id="scorerName" autocomplete="name" placeholder="e.g. Gokul"></label>
-      <label>Overs<input id="overs" type="number" min="1" max="50" value="10"></label>
-    </div>
-    <div class="grid two">
-      <label>Team 1<input id="team1" placeholder="e.g. Pollachi XI"></label>
-      <label>Team 2<input id="team2" placeholder="e.g. Kottur CC"></label>
-    </div>
-    <div class="grid two">
-      <label>Team 1 players <span class="hint">comma separated</span><textarea id="players1" rows="3" placeholder="Arun, Bala, Gokul, ..."></textarea></label>
-      <label>Team 2 players <span class="hint">comma separated</span><textarea id="players2" rows="3" placeholder="Karthik, Mani, Ravi, ..."></textarea></label>
-    </div>
-    <h2>Toss</h2>
-    <div class="grid two">
-      <label>Toss winner<select id="tossWinner"><option value="">Select team</option><option value="team1">Team 1</option><option value="team2">Team 2</option></select></label>
-      <label>Decision<select id="tossDecision"><option value="">Select decision</option><option value="bat">Bat</option><option value="bowl">Bowl</option></select></label>
-    </div>
-    <button id="createMatchBtn" class="primary full">Create match</button>
-    <p id="setupError" class="error"></p>
-  </section>
-
-  <section id="scoreView" class="hidden">
-    <div class="card match-head">
-      <div><div id="matchTitle" class="match-title"></div><div id="tossText" class="muted"></div></div>
-      <div id="matchStatus" class="pill"></div>
-    </div>
-
-    <div class="scoreboard card">
-      <div><div id="inningsLabel" class="muted"></div><div id="scoreText" class="big-score">0/0</div><div id="oversText" class="muted">0.0 overs</div></div>
-      <div class="rate-box"><div class="muted">Run rate</div><strong id="runRate">0.00</strong></div>
-    </div>
-
-    <div class="card">
-      <div class="section-title"><h2>Current ball</h2><span id="ballText" class="muted"></span></div>
-      <div class="grid two">
-        <label>Striker<select id="striker"></select></label>
-        <label>Non-striker<select id="nonStriker"></select></label>
-      </div>
-      <div class="grid two">
-        <label>Bowler<select id="bowler"></select></label>
-        <label>Runs off bat<select id="runs"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>6</option></select></label>
-      </div>
-      <div class="grid two">
-        <label>Extra<select id="extraType"><option value="">None</option><option value="wide">Wide (+1)</option><option value="no-ball">No-ball (+1)</option><option value="bye">Bye (+1)</option><option value="leg-bye">Leg-bye (+1)</option></select></label>
-        <label>Wicket<select id="wicket"><option value="">No wicket</option><option value="bowled">Bowled</option><option value="caught">Caught</option><option value="lbw">LBW</option><option value="run out">Run out</option><option value="stumped">Stumped</option><option value="hit wicket">Hit wicket</option></select></label>
-      </div>
-      <label id="dismissedWrap" class="hidden">Dismissed batter<select id="dismissedBatsman"></select></label>
-      <button id="addBallBtn" class="primary full">Add ball</button>
-      <p id="scoreError" class="error"></p>
-    </div>
-
-    <div class="card">
-      <div class="section-title"><h2>Innings controls</h2><span class="muted">Scored by <span id="activeScorer"></span></span></div>
-      <div class="grid two"><button id="endInningsBtn" class="secondary">End innings</button><button id="finishMatchBtn" class="danger">Finish match</button></div>
-    </div>
-
-    <div class="card">
-      <div class="section-title"><h2>Recent balls</h2><button id="refreshBtn" class="ghost small">Refresh</button></div>
-      <div id="ballsList" class="balls"></div>
-    </div>
-  </section>
-
-  <section id="summaryView" class="hidden">
-    <div class="card hero-summary"><div class="muted">Match complete</div><h1 id="resultText"></h1><div id="summaryToss" class="muted"></div></div>
-    <div class="summary-grid">
-      <div class="card"><h2>Top run-scorers</h2><div id="battingSummary"></div></div>
-      <div class="card"><h2>Top wicket-takers</h2><div id="bowlingSummary"></div></div>
-      <div class="card"><h2>Innings</h2><div id="inningsSummary"></div></div>
-      <div class="card"><h2>Notable moments</h2><div id="momentsSummary"></div></div>
-    </div>
-    <button id="summaryNewMatchBtn" class="primary full">Start another match</button>
-  </section>
+<header class="topbar"><div><div class="brand">🏏 GroundScore</div><div class="tagline">Every ball. Every run. Every moment.</div></div><button id="homeBtn" class="ghost hidden">Home</button></header>
+<main class="container"><div id="configNotice" class="notice hidden"></div>
+<section id="homeView">
+<div class="hero card"><div class="eyebrow">COMMUNITY CRICKET SCOREBOARD</div><h1>Match day starts here.</h1><p class="muted">Create a tournament, join your team, or follow every ball live — no account or app installation needed.</p><div class="grid two action-grid"><button id="startTournamentBtn" class="primary">＋ Start tournament</button><button id="joinTournamentBtn" class="secondary">Join tournament</button></div></div>
+<div class="section-title"><h2>Happening around the ground</h2><button id="reloadHomeBtn" class="ghost small">Refresh</button></div><div id="homeTournaments" class="tournament-list"><div class="empty">Loading tournaments…</div></div>
+</section>
+<section id="tournamentCreateView" class="card hidden"><h1>Create a tournament</h1><p class="muted">Give your event a name so everyone can find and join it.</p><label>Tournament name<input id="tournamentName" placeholder="e.g. 26th November Thrill Mill Tournament" maxlength="100"></label><div class="grid two"><label>Date<input id="tournamentDate" type="date"></label><label>Venue (optional)<input id="tournamentVenue" placeholder="e.g. Thrill Mill Ground"></label></div><label>Your name<input id="organizerName" placeholder="Name shown to the group" maxlength="60"></label><button id="createTournamentBtn" class="primary full">Create tournament</button><p id="tournamentCreateError" class="error"></p></section>
+<section id="tournamentListView" class="hidden"><div class="section-title"><div><h1>Join a tournament</h1><p class="muted">Choose an event to join or follow its live scores.</p></div><button id="backHomeBtn" class="ghost small">Back</button></div><div id="tournamentList" class="tournament-list"></div></section>
+<section id="joinView" class="card hidden"><button id="joinBackBtn" class="ghost small">← Tournaments</button><h1 id="joinTournamentTitle"></h1><p id="joinTournamentMeta" class="muted"></p><label>Your name<select id="existingMember"><option value="">Choose your name if already listed</option></select></label><div class="center muted">or join with a new name</div><label>New name<input id="newMemberName" placeholder="Enter your name" maxlength="60"></label><button id="confirmJoinBtn" class="primary full">Join tournament</button><p id="joinError" class="error"></p><button id="viewTournamentBtn" class="ghost full">Just view scores</button></section>
+<section id="tournamentView" class="hidden"><div class="card tournament-head"><button id="tournamentHomeBtn" class="ghost small">← Home</button><div><h1 id="tournamentTitle"></h1><p id="tournamentMeta" class="muted"></p></div><div class="grid two"><button id="tournamentJoinBtn" class="secondary">Join</button><button id="tournamentNewMatchBtn" class="primary">＋ New match</button></div></div><div class="section-title"><h2>Matches & live scorecards</h2><button id="refreshTournamentBtn" class="ghost small">Refresh</button></div><div id="tournamentMatches" class="tournament-list"></div><div class="card"><h2>People joined</h2><div id="memberList" class="member-chips"></div></div></section>
+<section id="matchSetupView" class="card hidden"><button id="matchSetupBackBtn" class="ghost small">← Tournament</button><h1>Set up the match</h1><p class="muted">Select teams, squads and toss before the first ball.</p><div class="grid two"><label>Scorer / your name<select id="matchScorer"></select></label><label>Overs<input id="overs" type="number" min="1" max="50" value="10"></label></div><div class="grid two"><label>Team 1<input id="team1" placeholder="e.g. Pollachi XI"></label><label>Team 2<input id="team2" placeholder="e.g. Kottur CC"></label></div><div class="grid two"><label>Team 1 players <span class="hint">comma separated</span><textarea id="players1" rows="3" placeholder="Arun, Bala, Gokul, …"></textarea></label><label>Team 2 players <span class="hint">comma separated</span><textarea id="players2" rows="3" placeholder="Karthik, Mani, Ravi, …"></textarea></label></div><h2>Toss</h2><div class="grid two"><label>Toss winner<select id="tossWinner"><option value="">Select team</option><option value="team1">Team 1</option><option value="team2">Team 2</option></select></label><label>Decision<select id="tossDecision"><option value="">Select decision</option><option value="bat">Bat</option><option value="bowl">Bowl</option></select></label></div><button id="createMatchBtn" class="primary full">Start match</button><p id="setupError" class="error"></p></section>
+<section id="scoreView" class="hidden"><div class="card match-head"><div><div id="matchTitle" class="match-title"></div><div id="tossText" class="muted"></div><div id="scoreTournamentName" class="muted"></div></div><div id="matchStatus" class="pill"></div></div><div class="scoreboard card"><div><div id="inningsLabel" class="muted"></div><div id="scoreText" class="big-score">0/0</div><div id="oversText" class="muted">0.0 overs</div><div id="targetText" class="muted"></div></div><div class="rate-box"><div class="muted">Run rate</div><strong id="runRate">0.00</strong><div class="muted">CRR</div></div></div>
+<div class="card"><div class="section-title"><h2>At the crease</h2><span id="ballText" class="muted"></span></div><div class="grid two"><label>Striker*<select id="striker"></select></label><label>Non-striker*<select id="nonStriker"></select></label></div><label>Bowler*<select id="bowler"></select></label><p class="hint muted">Choose the opening striker, non-striker and bowler. Strike rotation is automatic.</p></div>
+<div class="card"><div class="section-title"><h2>Record this delivery</h2><span class="muted">Scored by <strong id="activeScorer"></strong></span></div><div class="grid two"><label>Runs off bat<select id="runs"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select></label><label>Extra type<select id="extraType"><option value="">No extra</option><option value="wide">Wide</option><option value="no-ball">No-ball</option><option value="bye">Bye</option><option value="leg-bye">Leg-bye</option></select></label></div><div class="grid two"><label>Extra runs (in addition to 1 penalty for wide/no-ball)<select id="extraRuns"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></label><label>Wicket<select id="wicket"><option value="">No wicket</option><option value="bowled">Bowled</option><option value="caught">Caught</option><option value="run out">Run out</option><option value="lbw">LBW</option><option value="stumped">Stumped</option><option value="hit wicket">Hit wicket</option></select></label></div><label id="dismissedWrap" class="hidden">Dismissed batter<select id="dismissedBatsman"></select></label><label id="newBatterWrap" class="hidden">Incoming batter<select id="newBatter"></select></label><button id="addBallBtn" class="primary full">Add delivery</button><p id="scoreError" class="error"></p></div>
+<div class="card"><div class="section-title"><h2>Innings controls</h2><span class="muted">Public live score</span></div><div class="grid two"><button id="undoBtn" class="danger">↶ Undo last ball</button><button id="endInningsBtn" class="secondary">End innings</button></div><p class="hint muted">Undo removes the last delivery after confirmation.</p></div><div class="card"><div class="section-title"><h2>Ball-by-ball commentary</h2><button id="refreshBtn" class="ghost small">Refresh</button></div><div id="ballsList" class="balls"></div></div><div class="card"><button id="finishMatchBtn" class="danger full">Finish match</button></div></section>
+<section id="summaryView" class="hidden"><div class="card hero-summary"><div class="eyebrow">FULL TIME</div><h1 id="resultText"></h1><div id="summaryToss" class="muted"></div></div><div class="summary-grid"><div class="card"><h2>Top run-scorers</h2><div id="battingSummary"></div></div><div class="card"><h2>Top wicket-takers</h2><div id="bowlingSummary"></div></div><div class="card"><h2>Innings scorecards</h2><div id="inningsSummary"></div></div><div class="card"><h2>Match moments</h2><div id="momentsSummary"></div></div></div><button id="summaryTournamentBtn" class="secondary full">Back to tournament</button></section>
 </main>
-<footer>GroundScore · Open source · No accounts</footer>
-<script src="config.js"></script>
-<script src="app.js"></script>
-</body>
-</html>
+<div id="milestoneOverlay" class="milestone hidden" role="dialog" aria-live="assertive"><div class="milestone-card"><div class="milestone-icon">🏏</div><div id="milestoneKicker" class="eyebrow">MILESTONE</div><div id="milestoneTitle" class="milestone-title">FIFTY!</div><div id="milestoneDetail" class="muted"></div><button id="milestoneClose" class="primary">Continue scoring</button></div></div>
+<footer>GroundScore · Open source · Share the link to follow live scores</footer><script src="config.js"></script><script src="app.js"></script></body></html>
