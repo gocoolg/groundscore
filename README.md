@@ -5,12 +5,12 @@ A mobile-first cricket tournament and scoring web app. Static HTML/CSS/JavaScrip
 ## Current experience
 - Tournament home, create/join flow, member roster and saved teams/squads.
 - Tournament tabs for matches, teams, standings and members.
-- Match setup: overs, playing XI, toss, venue, scheduled time and fixture label.
+- Match setup: overs, playing XI, venue, scheduled time and a random coin toss (Team 1 calls heads/tails; the winning team chooses bat or bowl).
 - Sticky live scoreboard with current batters, bowler, CRR, RRR and chase target.
 - Compact one-tap scoring keypad (0, 1, 2, 3, 4, 6).
 - Bottom sheets for wides, no-balls, byes, leg-byes and wickets.
 - Batter/bowler scorecards, extras, fall of wickets and ball-by-ball commentary.
-- Automatic strike rotation for odd completed runs, end change after six legal balls, next-over bowler selection.
+- Automatic strike rotation for odd completed runs, end change after six legal balls, highlighted next-over bowler selection and new-batter confirmation after wickets.
 - Soft undo (voids the delivery rather than deleting it), milestone celebrations and direct share links.
 - Spectator polling every eight seconds while a match is open.
 
@@ -37,7 +37,7 @@ Repository Settings → Pages → Deploy from branch → `main` → `/(root)`. S
 
 ## Cricket scoring conventions
 - Wides and no-balls do not count as legal balls; byes and leg-byes do.
-- One penalty run is added automatically for a wide/no-ball. The extra sheet has fields for bat runs and additional completed runs.
+- One penalty run is added automatically for a wide/no-ball. The extra sheet has fields for bat runs and additional completed runs. The coin toss call/result and decision are stored in the match record.
 - Strike rotation uses completed-run parity; the one-run wide/no-ball penalty itself does not rotate strike. Ends change at the end of six legal deliveries.
 - Batter balls-faced exclude wides but include no-balls, byes and leg-byes.
 - Bowler runs conceded exclude byes and leg-byes. Run-outs are not credited to the bowler.
