@@ -378,6 +378,8 @@ function chooseTossCall(call) {
   state.toss = { call, result: null, winnerKey: null, decision: null, tossedAt: null };
   $("tossCallHeads").classList.toggle("selected", call === "heads");
   $("tossCallTails").classList.toggle("selected", call === "tails");
+  $("tossCallHeads").setAttribute("aria-pressed", String(call === "heads"));
+  $("tossCallTails").setAttribute("aria-pressed", String(call === "tails"));
   $("coinFace").textContent = call === "heads" ? "H" : "T";
   $("tossStatus").textContent = "Team 1 called " + call.toUpperCase() + ". Flip the coin.";
   $("flipCoinBtn").disabled = false;
