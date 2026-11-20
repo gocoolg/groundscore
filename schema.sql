@@ -1,3 +1,5 @@
+-- GroundScore schema and additive upgrade migration.
+-- Safe to rerun: existing tournaments, matches and balls are preserved.
 create extension if not exists pgcrypto;
 
 create table if not exists public.tournaments (
@@ -9,6 +11,9 @@ create table if not exists public.tournaments (
   created_by text not null,
   created_at timestamptz not null default now()
 );
+alter table public.tournaments add column if not exists format text not null default 'friendly';
+alter table public.tournaments add column if not exists updated_at timestamptz not null default now();
+
 create table if not exists public.tournament_members (
   id uuid primary key default gen_random_uuid(),
   tournament_id uuid not null references public.tournaments(id) on delete cascade,
@@ -17,10 +22,28 @@ create table if not exists public.tournament_members (
   unique(tournament_id, name)
 );
 
+create table if not exists public.teams (
+  id uuid primary key default gen_random_uuid(),
+  tournament_id uuid not null references public.tournaments(id) on delete cascade,
+  name text not null,
+  created_at timestamptz not null default now(),
+  unique(tournament_id, name)
+);
+create table if not exists public.team_players (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  name text not null,
+  batting_hand text,
+  bowling_style text,
+  created_at timestamptz not null default now(),
+  unique(team_id, name)
+);
+
 create table if not exists public.matches (
   id uuid primary key default gen_random_uuid(),
   tournament_id uuid references public.tournaments(id) on delete set null,
-  team1 text not null, team2 text not null,
+  team1 text not null,
+  team2 text not null,
   overs integer not null check (overs between 1 and 50),
   toss_winner text not null,
   toss_decision text not null check (toss_decision in ('bat','bowl')),
@@ -30,12 +53,24 @@ create table if not exists public.matches (
   created_at timestamptz not null default now(),
   finished_at timestamptz
 );
+alter table public.matches add column if not exists team1_id uuid references public.teams(id) on delete set null;
+alter table public.matches add column if not exists team2_id uuid references public.teams(id) on delete set null;
+alter table public.matches add column if not exists innings1_batting_team_id uuid references public.teams(id) on delete set null;
+alter table public.matches add column if not exists scheduled_at timestamptz;
+alter table public.matches add column if not exists round_name text;
+alter table public.matches add column if not exists players_per_team integer not null default 11;
+alter table public.matches add column if not exists venue text;
+alter table public.matches add column if not exists updated_at timestamptz not null default now();
+
 create table if not exists public.players (
   id uuid primary key default gen_random_uuid(),
   match_id uuid not null references public.matches(id) on delete cascade,
-  tournament_id uuid references public.tournaments(id) on delete set null,
-  team text not null check (team in ('team1','team2')), name text not null
+  team text not null check (team in ('team1','team2')),
+  name text not null
 );
+alter table public.players add column if not exists tournament_id uuid references public.tournaments(id) on delete set null;
+alter table public.players add column if not exists team_id uuid references public.teams(id) on delete set null;
+
 create table if not exists public.innings (
   id uuid primary key default gen_random_uuid(),
   match_id uuid not null references public.matches(id) on delete cascade,
@@ -45,36 +80,82 @@ create table if not exists public.innings (
   status text not null default 'live' check (status in ('live','completed')),
   unique(match_id, innings_no)
 );
+
 create table if not exists public.balls (
   id uuid primary key default gen_random_uuid(),
   match_id uuid not null references public.matches(id) on delete cascade,
   innings_no integer not null check (innings_no in (1,2)),
-  over_number integer not null, ball_number integer not null check (ball_number between 1 and 6),
-  striker_id uuid references public.players(id), non_striker_id uuid references public.players(id), bowler_id uuid references public.players(id),
-  runs integer not null default 0 check (runs between 0 and 6), runs_off_bat integer not null default 0 check (runs_off_bat between 0 and 6),
+  over_number integer not null,
+  ball_number integer not null check (ball_number between 1 and 6),
+  striker_id uuid references public.players(id),
+  non_striker_id uuid references public.players(id),
+  bowler_id uuid references public.players(id),
+  runs integer not null default 0 check (runs between 0 and 6),
+  runs_off_bat integer not null default 0 check (runs_off_bat between 0 and 6),
   extra_type text check (extra_type in ('wide','no-ball','bye','leg-bye')),
-  extra_runs integer not null default 0, total_runs integer not null default 0,
+  extra_runs integer not null default 0,
+  total_runs integer not null default 0,
   wicket text check (wicket in ('bowled','caught','lbw','run out','stumped','hit wicket')),
   dismissed_batsman_id uuid references public.players(id),
   next_striker_id uuid references public.players(id),
   next_non_striker_id uuid references public.players(id),
   next_batter_id uuid references public.players(id),
-  scorer_name text not null, created_at timestamptz not null default now()
+  scorer_name text not null,
+  created_at timestamptz not null default now()
 );
+alter table public.balls add column if not exists delivery_number integer;
+alter table public.balls add column if not exists wide_runs integer not null default 0;
+alter table public.balls add column if not exists no_ball_runs integer not null default 0;
+alter table public.balls add column if not exists bye_runs integer not null default 0;
+alter table public.balls add column if not exists leg_bye_runs integer not null default 0;
+alter table public.balls add column if not exists running_runs integer not null default 0;
+alter table public.balls add column if not exists is_boundary boolean not null default false;
+alter table public.balls add column if not exists crossed_before_wicket boolean not null default false;
+alter table public.balls add column if not exists voided_at timestamptz;
+alter table public.balls add column if not exists voided_by text;
+alter table public.balls add column if not exists idempotency_key uuid;
 
-alter table public.matches add column if not exists tournament_id uuid references public.tournaments(id) on delete set null;
-alter table public.players add column if not exists tournament_id uuid references public.tournaments(id) on delete set null;
-alter table public.balls add column if not exists next_striker_id uuid references public.players(id);
-alter table public.balls add column if not exists next_non_striker_id uuid references public.players(id);
-alter table public.balls add column if not exists next_batter_id uuid references public.players(id);
+-- Backfill sequence/stat fields for matches scored before this version.
+with numbered as (
+  select id, row_number() over (
+    partition by match_id, innings_no
+    order by created_at, id
+  ) as seq
+  from public.balls
+  where delivery_number is null
+)
+update public.balls b set delivery_number = n.seq
+from numbered n where b.id = n.id;
+
+update public.balls
+set
+  wide_runs = case when extra_type = 'wide' then greatest(extra_runs, 1) else wide_runs end,
+  no_ball_runs = case when extra_type = 'no-ball' then greatest(no_ball_runs, 1) else no_ball_runs end,
+  bye_runs = case when extra_type = 'bye' then extra_runs else bye_runs end,
+  leg_bye_runs = case when extra_type = 'leg-bye' then extra_runs else leg_bye_runs end,
+  running_runs = case
+    when extra_type = 'wide' then greatest(extra_runs - 1, 0)
+    when extra_type in ('bye','leg-bye') then extra_runs
+    else runs_off_bat
+  end,
+  is_boundary = case when runs_off_bat in (4,6) then true else is_boundary end
+where delivery_number is not null;
 
 create index if not exists matches_tournament_idx on public.matches(tournament_id, created_at desc);
+create index if not exists matches_team1_idx on public.matches(team1_id);
+create index if not exists matches_team2_idx on public.matches(team2_id);
 create index if not exists members_tournament_idx on public.tournament_members(tournament_id, name);
-create index if not exists balls_match_idx on public.balls(match_id, innings_no, created_at desc);
+create index if not exists teams_tournament_idx on public.teams(tournament_id, name);
+create index if not exists team_players_team_idx on public.team_players(team_id, name);
+create index if not exists balls_match_idx on public.balls(match_id, innings_no, delivery_number);
 create index if not exists players_match_idx on public.players(match_id, team);
+create unique index if not exists balls_delivery_sequence_uq on public.balls(match_id, innings_no, delivery_number) where delivery_number is not null;
+create unique index if not exists balls_idempotency_uq on public.balls(idempotency_key) where idempotency_key is not null;
 
 alter table public.tournaments enable row level security;
 alter table public.tournament_members enable row level security;
+alter table public.teams enable row level security;
+alter table public.team_players enable row level security;
 alter table public.matches enable row level security;
 alter table public.players enable row level security;
 alter table public.innings enable row level security;
@@ -84,6 +165,10 @@ drop policy if exists tournaments_public on public.tournaments;
 create policy tournaments_public on public.tournaments for all to anon using (true) with check (true);
 drop policy if exists tournament_members_public on public.tournament_members;
 create policy tournament_members_public on public.tournament_members for all to anon using (true) with check (true);
+drop policy if exists teams_public on public.teams;
+create policy teams_public on public.teams for all to anon using (true) with check (true);
+drop policy if exists team_players_public on public.team_players;
+create policy team_players_public on public.team_players for all to anon using (true) with check (true);
 drop policy if exists matches_public on public.matches;
 create policy matches_public on public.matches for all to anon using (true) with check (true);
 drop policy if exists players_public on public.players;
@@ -94,4 +179,4 @@ drop policy if exists balls_public on public.balls;
 create policy balls_public on public.balls for all to anon using (true) with check (true);
 
 grant usage on schema public to anon;
-grant select, insert, update, delete on public.tournaments, public.tournament_members, public.matches, public.players, public.innings, public.balls to anon;
+grant select, insert, update, delete on public.tournaments, public.tournament_members, public.teams, public.team_players, public.matches, public.players, public.innings, public.balls to anon;
