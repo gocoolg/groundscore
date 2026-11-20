@@ -114,6 +114,7 @@ async function addBall(){
  $("scoreError").textContent="";
  if(!scorer||!striker||!non||!bowler||striker===non){$("scoreError").textContent="Choose a scorer, two different batters and a bowler.";return}
  if(extra==="wide"&&runs!==0){$("scoreError").textContent="For a wide, set runs off bat to 0 and enter any completed runs under Extra runs.";return}
+ if(["bye","leg-bye"].includes(extra)&&runs!==0){$("scoreError").textContent="For byes and leg-byes, set runs off bat to 0 and enter the runs under Extra runs.";return}
  if(extra==="wide"&&wicket&&!["run out","stumped"].includes(wicket)){$("scoreError").textContent="On a wide, the supported wicket types are Run out and Stumped.";return}
  if(extra==="no-ball"&&wicket&&wicket!=="run out"){$("scoreError").textContent="On a no-ball, only Run out is supported by this scorer.";return}
  if(wicket&&wicket!=="run out"&&(runs>0||extras>0)){$("scoreError").textContent="For this wicket type, record a dot ball. Use Run out if runs were completed.";return}
