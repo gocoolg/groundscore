@@ -1,176 +1,1023 @@
-const cfg=window.GROUNDSCORE_CONFIG||{};
-const configured=!!(cfg.SUPABASE_URL&&!cfg.SUPABASE_URL.includes("YOUR_")&&cfg.SUPABASE_ANON_KEY&&!cfg.SUPABASE_ANON_KEY.includes("YOUR_"));
-const state={tournament:null,match:null,innings:[],balls:[],players:[],members:[],poll:null,milestones:new Set()};
-const $=id=>document.getElementById(id);
-const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-async function api(path,opts={}){const headers={apikey:cfg.SUPABASE_ANON_KEY,"Content-Type":"application/json",Prefer:opts.prefer||"return=representation"};const r=await fetch(`${cfg.SUPABASE_URL}/rest/v1/${path}`,{...opts,headers:{...headers,...(opts.headers||{})}});const t=await r.text();if(!r.ok)throw new Error(t||r.statusText);return t?JSON.parse(t):[]}
-const show=id=>{["homeView","tournamentCreateView","tournamentListView","joinView","tournamentView","matchSetupView","scoreView","summaryView"].forEach(x=>$(x).classList.toggle("hidden",x!==id));$("homeBtn").classList.toggle("hidden",id==="homeView")};
-const parsePlayers=s=>[...new Set(s.split(",").map(x=>x.trim()).filter(Boolean))];
-const overText=n=>`${Math.floor(n/6)}.${n%6}`;
-const currentInnings=()=>state.innings.find(x=>x.innings_no===state.match.current_innings);
-const teamName=t=>t==="team1"?state.match.team1:state.match.team2;
-const playerName=id=>state.players.find(p=>p.id===id)?.name||"Unknown";
-const localScorer=()=>localStorage.getItem("groundscore_scorer")||"";
-const legal=b=>!["wide","no-ball"].includes(b.extra_type);
-async function init(){if(!configured){$("configNotice").classList.remove("hidden");$("configNotice").textContent="Supabase is not configured. Check config.js.";show("homeView");return}const sharedMatch=new URLSearchParams(window.location.search).get("match");if(sharedMatch){try{await loadMatch(sharedMatch);return}catch(e){$("configNotice").classList.remove("hidden");$("configNotice").textContent="Could not load this scorecard: "+e.message}}await loadHome()}
-async function loadHome(){try{const ts=await api("tournaments?select=*&order=event_date.desc.nullslast,created_at.desc");renderTournamentCards($("homeTournaments"),ts.slice(0,6),false);show("homeView")}catch(e){$("homeTournaments").innerHTML=`<div class="empty">${esc(e.message)}</div>`;show("homeView")}}
-function renderTournamentCards(target,ts,joinMode){target.innerHTML=ts.length?ts.map(t=>`<article class="tournament-card"><div><div class="pill">${esc(t.status||"upcoming")}</div><h2>${esc(t.name)}</h2><p class="muted">${t.event_date?esc(new Date(t.event_date+"T00:00:00").toLocaleDateString()):"Date not set"} · ${esc(t.venue||"Venue TBA")}</p></div><div class="tournament-actions"><button class="secondary" data-view="${t.id}">View scores</button>${joinMode?`<button class="primary" data-join="${t.id}">Join</button>`:`<button class="ghost" data-view="${t.id}">Open</button>`}</div></article>`).join(""):`<div class="card empty">No tournaments yet. Start one and invite the group.</div>`;target.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>openTournament(b.dataset.view));target.querySelectorAll("[data-join]").forEach(b=>b.onclick=()=>openJoin(b.dataset.join))}
-async function listTournaments(){show("tournamentListView");$("tournamentList").innerHTML='<div class="empty">Loading tournaments…</div>';try{const ts=await api("tournaments?select=*&order=event_date.desc.nullslast,created_at.desc");renderTournamentCards($("tournamentList"),ts,true)}catch(e){$("tournamentList").innerHTML=`<div class="empty">${esc(e.message)}</div>`}}
-async function addMember(tid,name){const found=await api(`tournament_members?tournament_id=eq.${tid}&name=eq.${encodeURIComponent(name)}&select=*`);if(found.length)return found[0];return(await api("tournament_members",{method:"POST",body:JSON.stringify({tournament_id:tid,name})}))[0]}
-async function createTournament(){const name=$("tournamentName").value.trim(),organizer=$("organizerName").value.trim();$("tournamentCreateError").textContent="";if(!name||!organizer){$("tournamentCreateError").textContent="Enter tournament name and your name.";return}try{const t=(await api("tournaments",{method:"POST",body:JSON.stringify({name,event_date:$("tournamentDate").value||null,venue:$("tournamentVenue").value.trim()||null,status:"upcoming",created_by:organizer})}))[0];await addMember(t.id,organizer);localStorage.setItem("groundscore_member",organizer);localStorage.setItem("groundscore_scorer",organizer);await openTournament(t.id)}catch(e){$("tournamentCreateError").textContent=e.message}}
-async function openJoin(tid){state.tournament=(await api(`tournaments?id=eq.${tid}&select=*`))[0];const ms=await api(`tournament_members?tournament_id=eq.${tid}&select=*&order=name.asc`);state.members=ms;$("joinTournamentTitle").textContent=state.tournament.name;$("joinTournamentMeta").textContent=[state.tournament.event_date,state.tournament.venue].filter(Boolean).join(" · ");$("existingMember").innerHTML='<option value="">Choose your name if already listed</option>'+ms.map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join("");$("newMemberName").value="";$("joinError").textContent="";show("joinView")}
-async function confirmJoin(){const name=$("existingMember").value||$("newMemberName").value.trim();$("joinError").textContent="";if(!name){$("joinError").textContent="Select your name or enter a new name.";return}try{await addMember(state.tournament.id,name);localStorage.setItem("groundscore_member",name);localStorage.setItem("groundscore_scorer",name);await openTournament(state.tournament.id)}catch(e){$("joinError").textContent=e.message}}
-async function openTournament(tid){state.tournament=(await api(`tournaments?id=eq.${tid}&select=*`))[0];await refreshTournament();show("tournamentView")}
-async function refreshTournament(){const tid=state.tournament.id;const [matches,members]=await Promise.all([api(`matches?tournament_id=eq.${tid}&select=*&order=created_at.desc`),api(`tournament_members?tournament_id=eq.${tid}&select=*&order=name.asc`)]);state.members=members;$("tournamentTitle").textContent=state.tournament.name;$("tournamentMeta").textContent=[state.tournament.event_date?new Date(state.tournament.event_date+"T00:00:00").toLocaleDateString():"Date TBA",state.tournament.venue||"Venue TBA",state.tournament.status].join(" · ");$("memberList").innerHTML=members.map(m=>`<span class="member-chip">${esc(m.name)}</span>`).join("")||"No members yet";$("tournamentMatches").innerHTML=matches.length?matches.map(m=>`<article class="tournament-card"><div><div class="pill">${m.status==="finished"?"finished":"live"}</div><h2>${esc(m.team1)} vs ${esc(m.team2)}</h2><p class="muted">${m.overs} overs · Scorer ${esc(m.created_by)}</p></div><div class="tournament-actions"><button class="primary" data-match="${m.id}">${m.status==="finished"?"Scorecard":"Follow live"}</button></div></article>`).join(""):'<div class="card empty">No matches yet. Start the first game.</div>';$("tournamentMatches").querySelectorAll("[data-match]").forEach(b=>b.onclick=()=>loadMatch(b.dataset.match))}
-async function startMatchSetup(){const ms=await api(`tournament_members?tournament_id=eq.${state.tournament.id}&select=*&order=name.asc`);state.members=ms;$("matchScorer").innerHTML='<option value="">Select scorer</option>'+ms.map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join("");const saved=localScorer()||localStorage.getItem("groundscore_member");if(saved)$("matchScorer").value=saved;$("setupError").textContent="";show("matchSetupView")}
-async function createMatch(){const scorer=$("matchScorer").value,team1=$("team1").value.trim(),team2=$("team2").value.trim(),p1=parsePlayers($("players1").value),p2=parsePlayers($("players2").value),overs=Number($("overs").value),tw=$("tossWinner").value,td=$("tossDecision").value;if(!scorer||!team1||!team2||team1.toLowerCase()===team2.toLowerCase()||overs<1||overs>50||!tw||!td||p1.length<2||p2.length<2){$("setupError").textContent="Choose scorer, distinct teams, 1–50 overs, toss details and at least two players per side.";return}try{await api(`tournaments?id=eq.${state.tournament.id}`,{method:"PATCH",body:JSON.stringify({status:"live"})});const firstBat=td==="bat"?tw:tw==="team1"?"team2":"team1",firstBowl=firstBat==="team1"?"team2":"team1";const m=(await api("matches",{method:"POST",body:JSON.stringify({tournament_id:state.tournament.id,team1,team2,overs,toss_winner:tw==="team1"?team1:team2,toss_decision:td,status:"live",current_innings:1,created_by:scorer})}))[0];const players=[...p1.map(name=>({match_id:m.id,tournament_id:state.tournament.id,team:"team1",name})),...p2.map(name=>({match_id:m.id,tournament_id:state.tournament.id,team:"team2",name}))];await api("players",{method:"POST",body:JSON.stringify(players)});await api("innings",{method:"POST",body:JSON.stringify({match_id:m.id,innings_no:1,batting_team:firstBat,bowling_team:firstBowl,status:"live"})});localStorage.setItem("groundscore_scorer",scorer);await loadMatch(m.id)}catch(e){$("setupError").textContent=e.message}}
-async function loadMatch(id){stopPolling();state.match=(await api(`matches?id=eq.${id}&select=*`))[0];if(!state.match)throw Error("Match not found");if(state.match.tournament_id)state.tournament=(await api(`tournaments?id=eq.${state.match.tournament_id}&select=*`))[0];const [innings,players,balls]=await Promise.all([api(`innings?match_id=eq.${id}&select=*&order=innings_no.asc`),api(`players?match_id=eq.${id}&select=*&order=name.asc`),api(`balls?match_id=eq.${id}&select=*&order=created_at.asc`)]);state.innings=innings;state.players=players;state.balls=balls;if(state.match.status==="finished"){renderSummary();return}renderScore();state.poll=setInterval(()=>loadMatchData(id).catch(()=>{}),12000)}
-async function loadMatchData(id){
- const [m,innings,balls]=await Promise.all([
-  api("matches?id=eq."+id+"&select=*"),
-  api("innings?match_id=eq."+id+"&select=*&order=innings_no.asc"),
-  api("balls?match_id=eq."+id+"&select=*&order=created_at.asc")
- ]);
- if(!m[0])return;
- const oldBalls=state.balls,oldIds=new Set(oldBalls.map(b=>b.id));
- const newBalls=balls.filter(b=>!oldIds.has(b.id));
- const latestNew=newBalls[newBalls.length-1];
- const relevantInnings=latestNew?latestNew.innings_no:m[0].current_innings;
- const oldThisInnings=oldBalls.filter(b=>b.innings_no===relevantInnings);
- const oldTeamTotal=oldThisInnings.reduce((sum,b)=>sum+Number(b.total_runs),0);
- const oldPlayerTotals={};
- oldThisInnings.forEach(b=>{oldPlayerTotals[b.striker_id]=(oldPlayerTotals[b.striker_id]||0)+Number(b.runs_off_bat)});
- state.match=m[0];state.innings=innings;state.balls=balls;
- if(state.match.status==="finished"){stopPolling();renderSummary();return}
- renderScore();
- if(newBalls.length)checkMilestones(newBalls,oldTeamTotal,oldPlayerTotals);
+import {
+  buildDelivery,
+  inningsStats,
+  currentBattingState,
+  battingScorecard,
+  bowlingScorecard,
+  fallOfWickets,
+  matchResult,
+  tournamentStandings
+} from "./js/scoring-engine.js";
+
+const cfg = window.GROUNDSCORE_CONFIG || {};
+const configured = !!(cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY);
+const $ = id => document.getElementById(id);
+const state = {
+  tournament: null, match: null, innings: [], balls: [], players: [], members: [],
+  teams: [], teamPlayers: {}, poll: null, current: null, saving: false,
+  selectedScoreTab: "scorer", selectedTournamentTab: "matches",
+  lineupConfirmed: false, milestones: new Set(), pendingKey: null
+};
+
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  }[ch]));
 }
-function stopPolling(){if(state.poll)clearInterval(state.poll);state.poll=null}
-function stats(inn){const balls=state.balls.filter(b=>b.innings_no===inn.innings_no),total=balls.reduce((s,b)=>s+Number(b.total_runs),0),wk=balls.filter(b=>b.wicket).length,legalBalls=balls.filter(legal).length;return{balls,total,wk,legalBalls,overs:overText(legalBalls),rr:legalBalls?(total/(legalBalls/6)).toFixed(2):"0.00"}}
-function renderScore(){
- show("scoreView");
- const inn=currentInnings();if(!inn)return;
- const s=stats(inn),first=state.innings.find(i=>i.innings_no===1);
- const target=state.match.current_innings===2&&first?stats(first).total+1:null;
- const battingCount=state.players.filter(p=>p.team===inn.batting_team).length;
- const allOut=s.wk>=Math.max(1,battingCount-1);
- const oversDone=s.legalBalls>=state.match.overs*6;
- const chaseDone=target!==null&&s.total>=target;
- const closed=allOut||oversDone||chaseDone;
- $("matchTitle").textContent=state.match.team1+" vs "+state.match.team2;
- $("tossText").textContent="Toss: "+state.match.toss_winner+" won and chose to "+state.match.toss_decision;
- $("scoreTournamentName").textContent=state.tournament?.name||"";
- $("matchStatus").textContent="Innings "+state.match.current_innings;
- $("inningsLabel").textContent=teamName(inn.batting_team)+" batting";
- $("scoreText").textContent=s.total+"/"+s.wk;
- $("oversText").textContent=s.overs+" overs";
- $("runRate").textContent=s.rr;
- $("targetText").textContent=target?"Target "+target+" · Need "+Math.max(0,target-s.total)+" from "+Math.max(0,state.match.overs*6-s.legalBalls)+" balls":"";
- $("ballText").textContent="Legal ball "+(s.legalBalls+1);
- $("activeScorer").textContent=localScorer()||"Viewer";
- fillPlayerSelects(inn,s.balls);renderBalls(s.balls);
- $("addBallBtn").disabled=closed;
- $("addBallBtn").classList.toggle("disabled",closed);
- $("scoreError").textContent=allOut?"All out. End the innings to continue.":oversDone?"Over limit reached. End the innings to continue.":chaseDone?"Target reached. End the innings to finish the chase.":"";
+function queryValue(value) { return encodeURIComponent(String(value)); }
+function parseNames(value) {
+  return [...new Set(String(value || "").split(",").map(x => x.trim()).filter(Boolean))];
 }
-function setSelectOptions(id,players,selectedId,placeholder){
- const el=$(id);el.innerHTML=(placeholder?'<option value="">'+esc(placeholder)+'</option>':'')+players.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join("");
- if(selectedId&&players.some(p=>p.id===selectedId))el.value=selectedId;
+function teamName(teamKey) {
+  return !state.match ? "" : (teamKey === "team1" ? state.match.team1 : state.match.team2);
 }
-function fillPlayerSelects(inn,balls){
- const batting=state.players.filter(p=>p.team===inn.batting_team);
- const bowling=state.players.filter(p=>p.team===inn.bowling_team);
- const last=balls[balls.length-1];
- const oldStriker=$("striker").value,oldNon=$("nonStriker").value,oldBowler=$("bowler").value;
- const striker=last?(last.next_striker_id||""):oldStriker;
- const non=last?(last.next_non_striker_id||""):oldNon;
- const overJustEnded=!!(last&&legal(last)&&Number(last.ball_number)===6);
- const bowlersForThisOver=overJustEnded?bowling.filter(p=>p.id!==last.bowler_id):bowling;
- const bowler=last?(overJustEnded?"":(last.bowler_id||"")):oldBowler;
- setSelectOptions("striker",batting,striker,"Select striker");
- setSelectOptions("nonStriker",batting,non,"Select non-striker");
- setSelectOptions("bowler",bowlersForThisOver,bowler,overJustEnded?"Choose a new bowler":"Select bowler");
- const dismissedBefore=new Set(balls.filter(b=>b.wicket&&b.dismissed_batsman_id).map(b=>b.dismissed_batsman_id));
- const active=[striker,non].filter(Boolean);
- const activeBatters=batting.filter(p=>active.includes(p.id));
- const dismissedSelect=$("dismissedBatsman");
- const oldDismissed=dismissedSelect.value;
- setSelectOptions("dismissedBatsman",activeBatters,oldDismissed||striker,"Choose dismissed batter");
- const dismissedNow=$("dismissedBatsman").value;
- const survivor=active.find(id=>id&&id!==dismissedNow);
- const incoming=batting.filter(p=>!dismissedBefore.has(p.id)&&p.id!==dismissedNow&&p.id!==survivor);
- const oldIncoming=$("newBatter").value;
- setSelectOptions("newBatter",incoming,oldIncoming,"Choose incoming batter");
- const showWicket=!!$("wicket").value;
- $("dismissedWrap").classList.toggle("hidden",!showWicket);
- $("newBatterWrap").classList.toggle("hidden",!showWicket);
+function playersFor(teamKey) { return state.players.filter(p => p.team === teamKey); }
+function playerName(id) { return state.players.find(p => p.id === id)?.name || "—"; }
+function currentInnings() {
+  return state.innings.find(i => Number(i.innings_no) === Number(state.match?.current_innings));
 }
-function renderBalls(bs){$("ballsList").innerHTML=bs.length?[...bs].reverse().slice(0,18).map(b=>{const legalBefore=bs.slice(0,bs.indexOf(b)).filter(legal).length;const label=b.wicket?`WICKET · ${esc(b.wicket)}`:b.extra_type?esc(b.extra_type.toUpperCase()):b.runs_off_bat===4?"FOUR":b.runs_off_bat===6?"SIX":`${b.total_runs} run(s)`;return `<div class="ball"><strong>${Math.floor(legalBefore/6)}.${legalBefore%6+1}</strong><span>${esc(playerName(b.striker_id))} · ${label} · ${esc(playerName(b.bowler_id))}</span><span class="muted">${esc(b.scorer_name)}</span></div>`}).join(""):'<div class="empty">No deliveries yet. Select the opening players above.</div>'}
-function nextBatters(bs,ball){let striker=bs[0]?.striker_id,non=bs[0]?.non_striker_id;for(const b of bs){if(!striker){striker=b.striker_id;non=b.non_striker_id}if(b.wicket&&b.dismissed_batsman_id){if(b.dismissed_batsman_id===striker)striker=b.next_batter_id;else if(b.dismissed_batsman_id===non)non=b.next_batter_id}const runCount=Number(b.runs_off_bat)+(["bye","leg-bye"].includes(b.extra_type)?Number(b.extra_runs):0);if(runCount%2)[striker,non]=[non,striker];if(legal(b)&&Number(b.ball_number)===6)[striker,non]=[non,striker]}return{striker,non}}
-async function addBall(){
- const inn=currentInnings(),bs=state.balls.filter(b=>b.innings_no===inn.innings_no);
- const scorer=localScorer(),striker=$("striker").value,non=$("nonStriker").value,bowler=$("bowler").value;
- const wicket=$("wicket").value,extra=$("extraType").value,runs=Number($("runs").value),extras=Number($("extraRuns").value);
- $("scoreError").textContent="";
- if(!scorer||!striker||!non||!bowler||striker===non){$("scoreError").textContent="Choose a scorer, two different batters and a bowler.";return}
- if(extra==="wide"&&runs!==0){$("scoreError").textContent="For a wide, set runs off bat to 0 and enter any completed runs under Extra runs.";return}
- if(["bye","leg-bye"].includes(extra)&&runs!==0){$("scoreError").textContent="For byes and leg-byes, set runs off bat to 0 and enter the runs under Extra runs.";return}
- if(extra==="wide"&&wicket&&!["run out","stumped"].includes(wicket)){$("scoreError").textContent="On a wide, the supported wicket types are Run out and Stumped.";return}
- if(extra==="no-ball"&&wicket&&wicket!=="run out"){$("scoreError").textContent="On a no-ball, only Run out is supported by this scorer.";return}
- if(wicket&&wicket!=="run out"&&(runs>0||extras>0)){$("scoreError").textContent="For this wicket type, record a dot ball. Use Run out if runs were completed.";return}
- if(!extra&&extras>0){$("scoreError").textContent="Select an extra type before adding extra runs.";return}
- const legalBalls=bs.filter(legal).length,ballNo=legalBalls%6+1,overNo=Math.floor(legalBalls/6);
- const penalty=["wide","no-ball"].includes(extra)?1:0,totalExtra=extras+penalty;
- const dismissed=wicket?$("dismissedBatsman").value:null;
- if(wicket&&![striker,non].includes(dismissed)){$("scoreError").textContent="Select the striker or non-striker who was dismissed.";return}
- const dismissedBefore=new Set(bs.filter(b=>b.wicket&&b.dismissed_batsman_id).map(b=>b.dismissed_batsman_id));
- const batting=state.players.filter(p=>p.team===inn.batting_team);
- const survivor=dismissed===striker?non:striker;
- const incomingOptions=batting.filter(p=>!dismissedBefore.has(p.id)&&p.id!==dismissed&&p.id!==survivor);
- let incoming=null;
- if(wicket&&incomingOptions.length){
-  incoming=$("newBatter").value;
-  if(!incoming||!incomingOptions.some(p=>p.id===incoming)){$("scoreError").textContent="Select an eligible incoming batter.";return}
- }
- let nextStriker=striker,nextNon=non;
- if(wicket){if(dismissed===nextStriker)nextStriker=incoming;else nextNon=incoming}
- const completedRuns=runs+extras;
- if(completedRuns%2)[nextStriker,nextNon]=[nextNon,nextStriker];
- if(legal({extra_type:extra})&&ballNo===6)[nextStriker,nextNon]=[nextNon,nextStriker];
- const payload={match_id:state.match.id,innings_no:inn.innings_no,over_number:overNo,ball_number:ballNo,striker_id:striker,non_striker_id:non,bowler_id:bowler,runs,runs_off_bat:runs,extra_type:extra||null,extra_runs:totalExtra,total_runs:runs+totalExtra,wicket:wicket||null,dismissed_batsman_id:dismissed,next_striker_id:nextStriker,next_non_striker_id:nextNon,next_batter_id:incoming,scorer_name:scorer};
- try{
-  const oldTeam=stats(inn).total,oldPlayer=bs.filter(b=>b.striker_id===striker).reduce((sum,b)=>sum+Number(b.runs_off_bat),0);
-  await api("balls",{method:"POST",body:JSON.stringify(payload)});
-  $("wicket").value="";$("runs").value="0";$("extraType").value="";$("extraRuns").value="0";
-  await loadMatch(state.match.id);checkMilestones([payload],oldTeam,oldPlayer,striker);
- }catch(e){$("scoreError").textContent=e.message}
+function activeBalls(inningsNo) {
+  return state.balls.filter(b => Number(b.innings_no) === Number(inningsNo) && !b.voided_at);
 }
-async function undoBall(){const bs=state.balls.filter(b=>b.innings_no===state.match.current_innings);if(!bs.length){alert("No delivery to undo.");return}const last=bs[bs.length-1];if(!confirm(`Undo last delivery: ${last.total_runs} run(s)${last.wicket?", wicket":""}? This cannot be reversed.`))return;try{await api(`balls?id=eq.${last.id}`,{method:"DELETE",prefer:"return=minimal"});await loadMatch(state.match.id)}catch(e){alert("Undo failed: "+e.message)}}
-async function endInnings(){const inn=currentInnings(),next=state.match.current_innings+1;if(next>2){await finishMatch();return}if(!confirm("End this innings and start the second innings?"))return;await api(`innings?id=eq.${inn.id}`,{method:"PATCH",body:JSON.stringify({status:"completed"})});await api("innings",{method:"POST",body:JSON.stringify({match_id:state.match.id,innings_no:next,batting_team:inn.bowling_team,bowling_team:inn.batting_team,status:"live"})});await api(`matches?id=eq.${state.match.id}`,{method:"PATCH",body:JSON.stringify({current_innings:next})});await loadMatch(state.match.id)}
-async function finishMatch(){if(!confirm("Finish match and show final scorecard?"))return;stopPolling();await api(`matches?id=eq.${state.match.id}`,{method:"PATCH",body:JSON.stringify({status:"finished",finished_at:new Date().toISOString()})});await loadMatch(state.match.id)}
-async function shareMatch(){const url=new URL(window.location.href);url.searchParams.set("match",state.match.id);try{await navigator.clipboard.writeText(url.toString());alert("Live score link copied. Anyone with the link can view this match.");}catch(e){window.prompt("Copy this live score link:",url.toString())}}
-function showMilestone(kicker,title,detail){$("milestoneKicker").textContent=kicker;$("milestoneTitle").textContent=title;$("milestoneDetail").textContent=detail;$("milestoneOverlay").classList.remove("hidden")}
-function checkMilestones(newBalls,oldTeam=0,oldPlayer=0,pid=null){
- const inn=currentInnings();if(!inn)return;
- const thresholds=[50,100,150,200,250,300];
- const currentTeam=stats(inn).total;
- const teamMark=thresholds.filter(n=>oldTeam<n&&currentTeam>=n).pop();
- if(teamMark){
-  const key="team:"+state.match.id+":"+inn.innings_no+":"+teamMark;
-  if(!state.milestones.has(key)){state.milestones.add(key);showMilestone("TEAM MILESTONE",teamMark===50?"TEAM FIFTY!":teamMark===100?"TEAM CENTURY!":"TEAM "+teamMark+"!",teamName(inn.batting_team)+" reached "+teamMark);}
- }
- const ids=pid?[pid]:[...new Set(newBalls.map(b=>b.striker_id).filter(Boolean))];
- for(const id of ids){
-  const previous=typeof oldPlayer==="object"?(oldPlayer[id]||0):(id===pid?oldPlayer:0);
-  const current=state.balls.filter(b=>b.innings_no===inn.innings_no&&b.striker_id===id).reduce((sum,b)=>sum+Number(b.runs_off_bat),0);
-  const mark=thresholds.filter(n=>n<=200&&previous<n&&current>=n).pop();
-  if(mark){
-   const key="batter:"+state.match.id+":"+inn.innings_no+":"+id+":"+mark;
-   if(!state.milestones.has(key)){state.milestones.add(key);showMilestone("BATTER MILESTONE",mark===50?"HALF-CENTURY!":mark===100?"CENTURY!":mark+"!",playerName(id)+" reached "+mark+" runs");}
+function localScorer() {
+  return localStorage.getItem("groundscore_scorer") || "";
+}
+function overText(n) { return Math.floor(n / 6) + "." + (n % 6); }
+function showView(id) {
+  ["homeView","tournamentCreateView","tournamentListView","joinView","tournamentView","matchSetupView","scoreView","summaryView"]
+    .forEach(view => $(view)?.classList.toggle("hidden", view !== id));
+  $("homeBtn").classList.toggle("hidden", id === "homeView");
+  window.scrollTo({ top: 0, behavior: "instant" });
+}
+function toast(message) {
+  const el = $("toast");
+  el.textContent = message;
+  el.classList.remove("hidden");
+  clearTimeout(state.toastTimer);
+  state.toastTimer = setTimeout(() => el.classList.add("hidden"), 2400);
+}
+function setNetwork() {
+  const online = navigator.onLine;
+  $("networkStatus").classList.toggle("offline", !online);
+  $("networkStatus").querySelector("span").textContent = online ? "Connected" : "Offline";
+}
+async function api(path, options = {}) {
+  if (!configured) throw new Error("Supabase is not configured. Check config.js.");
+  const headers = {
+    apikey: cfg.SUPABASE_ANON_KEY,
+    "Content-Type": "application/json",
+    Prefer: options.prefer || "return=representation"
+  };
+  const response = await fetch(cfg.SUPABASE_URL + "/rest/v1/" + path, {
+    ...options,
+    headers: { ...headers, ...(options.headers || {}) }
+  });
+  const body = await response.text();
+  if (!response.ok) {
+    let message = body || response.statusText;
+    try { const parsed = JSON.parse(body); message = parsed.message || parsed.details || parsed.hint || message; } catch (_) {}
+    throw new Error(message);
   }
- }
+  return body ? JSON.parse(body) : [];
 }
-function renderSummary(){show("summaryView");const scores=state.innings.map(i=>({i,...stats(i)}));let result="Match ended";if(scores.length===2){const a=scores[0],b=scores[1];if(a.total>b.total)result=`${teamName(a.i.batting_team)} won by ${a.total-b.total} runs`;else if(b.total>a.total)result=`${teamName(b.i.batting_team)} won by ${Math.max(0,state.players.filter(p=>p.team===b.i.batting_team).length-b.wk)} wickets`;else result="Match tied"}$("resultText").textContent=result;$("summaryToss").textContent=`Toss: ${state.match.toss_winner} chose to ${state.match.toss_decision} · ${state.tournament?.name||""}`;const bat={};state.players.forEach(p=>{const pb=state.balls.filter(b=>b.striker_id===p.id),runs=pb.reduce((s,b)=>s+b.runs_off_bat,0),fours=pb.filter(b=>b.runs_off_bat===4).length,sixes=pb.filter(b=>b.runs_off_bat===6).length,legalBalls=pb.filter(legal).length;if(runs||legalBalls)bat[p.id]={runs,balls:legalBalls,fours,sixes}});$("battingSummary").innerHTML=Object.entries(bat).sort((a,b)=>b[1].runs-a[1].runs).map(([id,s])=>`<div class="row"><span>${esc(playerName(id))} <small class="muted">${s.balls} balls · ${s.fours}×4 · ${s.sixes}×6</small></span><strong>${s.runs}</strong></div>`).join("")||'<div class="empty">No batting data.</div>';const bowl={};state.balls.forEach(b=>{if(b.wicket&&["bowled","caught","lbw","stumped","hit wicket"].includes(b.wicket))bowl[b.bowler_id]=(bowl[b.bowler_id]||0)+1});$("bowlingSummary").innerHTML=Object.entries(bowl).sort((a,b)=>b[1]-a[1]).map(([id,v])=>`<div class="row"><span>${esc(playerName(id))}</span><strong>${v} wicket(s)</strong></div>`).join("")||'<div class="empty">No credited wickets.</div>';$("inningsSummary").innerHTML=scores.map(s=>`<div class="row"><span>${esc(teamName(s.i.batting_team))}</span><strong>${s.total}/${s.wk} · ${s.overs} ov · RR ${s.rr}</strong></div>`).join("");const moments=[];state.balls.forEach(b=>{if(b.runs_off_bat===6)moments.push(`Six by ${playerName(b.striker_id)}`);if(b.runs_off_bat===4)moments.push(`Four by ${playerName(b.striker_id)}`);if(b.wicket)moments.push(`${playerName(b.dismissed_batsman_id)} out — ${b.wicket}`)});$("momentsSummary").innerHTML=moments.slice(0,12).map(x=>`<div class="row"><span>${esc(x)}</span></div>`).join("")||'<div class="empty">No notable moments.</div>'}
-function bind(id,fn){$(id).addEventListener("click",fn)}
-bind("startTournamentBtn",()=>(show("tournamentCreateView"),$("tournamentCreateError").textContent=""));bind("joinTournamentBtn",listTournaments);bind("reloadHomeBtn",loadHome);bind("createTournamentBtn",createTournament);bind("backHomeBtn",loadHome);bind("joinBackBtn",listTournaments);bind("confirmJoinBtn",confirmJoin);bind("viewTournamentBtn",()=>openTournament(state.tournament.id));bind("tournamentHomeBtn",loadHome);bind("tournamentJoinBtn",()=>openJoin(state.tournament.id));bind("tournamentNewMatchBtn",startMatchSetup);bind("refreshTournamentBtn",refreshTournament);bind("matchSetupBackBtn",()=>openTournament(state.tournament.id));bind("createMatchBtn",createMatch);bind("addBallBtn",addBall);bind("undoBtn",undoBall);bind("endInningsBtn",endInnings);bind("finishMatchBtn",finishMatch);bind("refreshBtn",()=>loadMatch(state.match.id));bind("shareMatchBtn",shareMatch);bind("homeBtn",loadHome);bind("summaryTournamentBtn",()=>openTournament(state.tournament.id));bind("milestoneClose",()=>$("milestoneOverlay").classList.add("hidden"));$("wicket").onchange=()=>{if(currentInnings())fillPlayerSelects(currentInnings(),state.balls.filter(b=>b.innings_no===state.match.current_innings))};$("dismissedBatsman").onchange=()=>{if(currentInnings())fillPlayerSelects(currentInnings(),state.balls.filter(b=>b.innings_no===state.match.current_innings))};
-init();
+function bind(id, event, callback) {
+  const el = $(id);
+  if (el) el.addEventListener(event, callback);
+}
+function setActiveScoreTab(tab) {
+  state.selectedScoreTab = tab;
+  document.querySelectorAll("[data-score-tab]").forEach(button =>
+    button.classList.toggle("active", button.dataset.scoreTab === tab)
+  );
+  ["scorerPanel","scorecardPanel","commentaryPanel","matchDetailsPanel"].forEach(id =>
+    $(id).classList.toggle("hidden", id !== ({
+      scorer:"scorerPanel", scorecard:"scorecardPanel",
+      commentary:"commentaryPanel", match:"matchDetailsPanel"
+    })[tab])
+  );
+  if (tab === "scorecard") renderScorecard();
+  if (tab === "commentary") renderCommentary();
+  if (tab === "match") renderMatchDetails();
+}
+function setActiveTournamentTab(tab) {
+  state.selectedTournamentTab = tab;
+  document.querySelectorAll("[data-tournament-tab]").forEach(button =>
+    button.classList.toggle("active", button.dataset.tournamentTab === tab)
+  );
+  ["matches","teams","standings","members"].forEach(name => {
+    const id = ({matches:"tMatchesPanel",teams:"tTeamsPanel",standings:"tStandingsPanel",members:"tMembersPanel"})[name];
+    $(id).classList.toggle("hidden", tab !== name);
+  });
+  if (tab === "standings") renderStandings().catch(showError);
+}
+
+function showError(error) { toast(error?.message || String(error)); }
+
+async function init() {
+  setNetwork();
+  if (!configured) {
+    $("configNotice").classList.remove("hidden");
+    $("configNotice").textContent = "Supabase is not configured. Check config.js before using GroundScore.";
+    showView("homeView");
+    return;
+  }
+  const sharedMatch = new URLSearchParams(window.location.search).get("match");
+  if (sharedMatch) {
+    try { await loadMatch(sharedMatch); return; }
+    catch (error) {
+      $("configNotice").classList.remove("hidden");
+      $("configNotice").textContent = "Could not load this match: " + error.message;
+    }
+  }
+  await loadHome();
+}
+async function loadHome() {
+  try {
+    const rows = await api("tournaments?select=*&order=event_date.desc.nullslast,created_at.desc");
+    renderTournamentCards($("homeTournaments"), rows.slice(0, 8), false);
+  } catch (error) {
+    $("homeTournaments").innerHTML = '<div class="empty">' + esc(error.message) + "</div>";
+  }
+  showView("homeView");
+}
+function renderTournamentCards(container, tournaments, joinMode) {
+  if (!tournaments.length) {
+    container.innerHTML = '<div class="empty">No tournaments yet. Start one and invite your group.</div>';
+    return;
+  }
+  container.innerHTML = tournaments.map(t => {
+    const date = t.event_date ? new Date(t.event_date + "T00:00:00").toLocaleDateString() : "Date TBA";
+    const statusClass = t.status === "completed" ? "finished" : "";
+    return '<article class="tournament-card"><div><span class="status-pill ' + statusClass + '">' + esc(t.status || "upcoming") +
+      '</span><h2>' + esc(t.name) + '</h2><p class="muted">' + esc(date) + " · " + esc(t.venue || "Venue TBA") +
+      '</p></div><div class="tournament-actions"><button class="btn btn-secondary" data-view="' + t.id +
+      '">View scores</button>' + (joinMode ? '<button class="btn btn-primary" data-join="' + t.id + '">Join</button>' :
+      '<button class="btn btn-quiet" data-view="' + t.id + '">Open</button>') + "</div></article>";
+  }).join("");
+  container.querySelectorAll("[data-view]").forEach(button =>
+    button.addEventListener("click", () => openTournament(button.dataset.view).catch(showError))
+  );
+  container.querySelectorAll("[data-join]").forEach(button =>
+    button.addEventListener("click", () => openJoin(button.dataset.join).catch(showError))
+  );
+}
+async function listTournaments() {
+  showView("tournamentListView");
+  $("tournamentList").innerHTML = '<div class="skeleton">Loading tournaments…</div>';
+  try {
+    const rows = await api("tournaments?select=*&order=event_date.desc.nullslast,created_at.desc");
+    renderTournamentCards($("tournamentList"), rows, true);
+  } catch (error) {
+    $("tournamentList").innerHTML = '<div class="empty">' + esc(error.message) + "</div>";
+  }
+}
+async function addMember(tournamentId, name) {
+  const clean = name.trim().replace(/\s+/g, " ");
+  const existing = await api("tournament_members?tournament_id=eq." + tournamentId +
+    "&name=eq." + queryValue(clean) + "&select=*");
+  if (existing.length) return existing[0];
+  try {
+    return (await api("tournament_members", {
+      method: "POST", body: JSON.stringify({ tournament_id: tournamentId, name: clean })
+    }))[0];
+  } catch (error) {
+    // A second device may have added the same name between lookup and insert.
+    const retry = await api("tournament_members?tournament_id=eq." + tournamentId +
+      "&name=eq." + queryValue(clean) + "&select=*");
+    if (retry.length) return retry[0];
+    throw error;
+  }
+}
+async function createTournament() {
+  const name = $("tournamentName").value.trim();
+  const organizer = $("organizerName").value.trim();
+  $("tournamentCreateError").textContent = "";
+  if (!name || !organizer) { $("tournamentCreateError").textContent = "Enter the tournament name and your display name."; return; }
+  try {
+    const created = (await api("tournaments", {
+      method: "POST",
+      body: JSON.stringify({
+        name,
+        event_date: $("tournamentDate").value || null,
+        venue: $("tournamentVenue").value.trim() || null,
+        format: $("tournamentFormat").value || "friendly",
+        status: "upcoming",
+        created_by: organizer
+      })
+    }))[0];
+    await addMember(created.id, organizer);
+    localStorage.setItem("groundscore_member", organizer);
+    localStorage.setItem("groundscore_scorer", organizer);
+    await openTournament(created.id);
+    toast("Tournament created");
+  } catch (error) { $("tournamentCreateError").textContent = error.message; }
+}
+async function openJoin(tournamentId) {
+  state.tournament = (await api("tournaments?id=eq." + tournamentId + "&select=*"))[0];
+  if (!state.tournament) throw new Error("Tournament not found.");
+  state.members = await api("tournament_members?tournament_id=eq." + tournamentId + "&select=*&order=name.asc");
+  $("joinTournamentTitle").textContent = state.tournament.name;
+  $("joinTournamentMeta").textContent = [state.tournament.event_date, state.tournament.venue].filter(Boolean).join(" · ");
+  $("existingMember").innerHTML = '<option value="">Select a name</option>' + state.members.map(member =>
+    '<option value="' + esc(member.name) + '">' + esc(member.name) + "</option>"
+  ).join("");
+  $("newMemberName").value = "";
+  $("joinError").textContent = "";
+  showView("joinView");
+}
+async function confirmJoin() {
+  const name = $("existingMember").value || $("newMemberName").value.trim();
+  $("joinError").textContent = "";
+  if (!name) { $("joinError").textContent = "Select your name or enter a new name."; return; }
+  try {
+    await addMember(state.tournament.id, name);
+    localStorage.setItem("groundscore_member", name);
+    localStorage.setItem("groundscore_scorer", name);
+    await openTournament(state.tournament.id);
+    toast("You're on the tournament list");
+  } catch (error) { $("joinError").textContent = error.message; }
+}
+async function openTournament(tournamentId) {
+  state.tournament = (await api("tournaments?id=eq." + tournamentId + "&select=*"))[0];
+  if (!state.tournament) throw new Error("Tournament not found.");
+  await refreshTournament();
+  showView("tournamentView");
+  setActiveTournamentTab(state.selectedTournamentTab || "matches");
+}
+async function refreshTournament() {
+  const id = state.tournament.id;
+  const [matches, members, teams] = await Promise.all([
+    api("matches?tournament_id=eq." + id + "&select=*&order=scheduled_at.asc.nullslast,created_at.desc"),
+    api("tournament_members?tournament_id=eq." + id + "&select=*&order=name.asc"),
+    api("teams?tournament_id=eq." + id + "&select=*&order=name.asc")
+  ]);
+  state.members = members;
+  state.teams = teams;
+  state.teamPlayers = {};
+  await Promise.all(teams.map(async team => {
+    state.teamPlayers[team.id] = await api("team_players?team_id=eq." + team.id + "&select=*&order=name.asc");
+  }));
+  $("tournamentTitle").textContent = state.tournament.name;
+  $("tournamentMeta").textContent = [
+    state.tournament.event_date ? new Date(state.tournament.event_date + "T00:00:00").toLocaleDateString() : "Date TBA",
+    state.tournament.venue || "Venue TBA",
+    (state.tournament.format || "friendly").toUpperCase()
+  ].join(" · ");
+  renderFixtures(matches);
+  renderTeams();
+  $("memberList").innerHTML = members.map(member => '<span class="member-chip">' + esc(member.name) + "</span>").join("") ||
+    '<div class="empty">No members yet.</div>';
+  const datalist = $("teamNamesList");
+  if (datalist) datalist.innerHTML = teams.map(team => '<option value="' + esc(team.name) + '"></option>').join("");
+}
+function renderFixtures(matches) {
+  const target = $("tournamentMatches");
+  if (!matches.length) { target.innerHTML = '<div class="empty">No matches yet. Create the first match.</div>'; return; }
+  target.innerHTML = matches.map(match => {
+    const live = match.status === "live";
+    const date = match.scheduled_at ? new Date(match.scheduled_at).toLocaleString() : (match.created_at ? new Date(match.created_at).toLocaleDateString() : "");
+    return '<article class="tournament-card"><div><span class="status-pill ' + (live ? "" : "finished") + '">' +
+      esc(match.status) + '</span><h2>' + esc(match.team1) + " vs " + esc(match.team2) + '</h2><p class="muted">' +
+      esc(match.round_name || (match.overs + " overs")) + " · " + esc(date) + '</p></div><div class="tournament-actions"><button class="btn btn-primary" data-match="' +
+      match.id + '">' + (live ? "Follow live" : "Scorecard") + "</button></div></article>";
+  }).join("");
+  target.querySelectorAll("[data-match]").forEach(button =>
+    button.addEventListener("click", () => loadMatch(button.dataset.match).catch(showError))
+  );
+}
+function renderTeams() {
+  const target = $("teamCards");
+  if (!state.teams.length) { target.innerHTML = '<div class="empty">No saved teams yet. Add a team and reuse its squad for future matches.</div>'; return; }
+  target.innerHTML = state.teams.map(team => {
+    const members = state.teamPlayers[team.id] || [];
+    return '<article class="team-card"><strong>' + esc(team.name) + '</strong><p>' +
+      esc(members.map(p => p.name).join(" · ") || "No squad members yet") + "</p></article>";
+  }).join("");
+}
+async function createTeam() {
+  const name = $("newTeamName").value.trim();
+  const players = parseNames($("newTeamPlayers").value);
+  $("teamCreateError").textContent = "";
+  if (!name || players.length < 2) { $("teamCreateError").textContent = "Enter a team name and at least two squad members."; return; }
+  try {
+    const duplicate = await api("teams?tournament_id=eq." + state.tournament.id + "&name=eq." + queryValue(name) + "&select=id");
+    if (duplicate.length) { $("teamCreateError").textContent = "That team already exists in this tournament."; return; }
+    const team = (await api("teams", {
+      method: "POST", body: JSON.stringify({ tournament_id: state.tournament.id, name })
+    }))[0];
+    await api("team_players", {
+      method: "POST",
+      body: JSON.stringify(players.map(player => ({ team_id: team.id, name: player })))
+    });
+    $("newTeamName").value = ""; $("newTeamPlayers").value = "";
+    await refreshTournament();
+    setActiveTournamentTab("teams");
+    toast("Team and squad saved");
+  } catch (error) { $("teamCreateError").textContent = error.message; }
+}
+async function findOrCreateTeam(name) {
+  const matches = await api("teams?tournament_id=eq." + state.tournament.id + "&name=eq." + queryValue(name) + "&select=*");
+  if (matches.length) return matches[0];
+  return (await api("teams", {
+    method: "POST", body: JSON.stringify({ tournament_id: state.tournament.id, name })
+  }))[0];
+}
+async function ensureTeamSquad(teamId, names) {
+  const existing = await api("team_players?team_id=eq." + teamId + "&select=*");
+  const existingNames = new Set(existing.map(p => p.name.toLowerCase()));
+  const additions = names.filter(name => !existingNames.has(name.toLowerCase()));
+  if (additions.length) {
+    await api("team_players", {
+      method: "POST",
+      body: JSON.stringify(additions.map(name => ({ team_id: teamId, name })))
+    });
+  }
+}
+async function onTeamNameChange(inputId, squadId) {
+  const name = $(inputId).value.trim();
+  const team = state.teams.find(t => t.name.toLowerCase() === name.toLowerCase());
+  if (!team) return;
+  const squad = state.teamPlayers[team.id] || [];
+  if (squad.length) $(squadId).value = squad.map(p => p.name).join(", ");
+}
+
+async function startMatchSetup() {
+  state.members = await api("tournament_members?tournament_id=eq." + state.tournament.id + "&select=*&order=name.asc");
+  state.teams = await api("teams?tournament_id=eq." + state.tournament.id + "&select=*&order=name.asc");
+  $("matchScorer").innerHTML = '<option value="">Choose your name</option>' + state.members.map(member =>
+    '<option value="' + esc(member.name) + '">' + esc(member.name) + "</option>"
+  ).join("");
+  const saved = localScorer() || localStorage.getItem("groundscore_member");
+  if (saved) $("matchScorer").value = saved;
+  $("team1").value = ""; $("team2").value = "";
+  $("players1").value = ""; $("players2").value = "";
+  $("setupError").textContent = "";
+  showView("matchSetupView");
+}
+async function createMatch() {
+  const scorer = $("matchScorer").value;
+  const team1Name = $("team1").value.trim();
+  const team2Name = $("team2").value.trim();
+  let squad1 = parseNames($("players1").value);
+  let squad2 = parseNames($("players2").value);
+  const overs = Number($("overs").value);
+  const playersPerTeam = Number($("playersPerTeam").value);
+  const tossWinner = $("tossWinner").value;
+  const decision = $("tossDecision").value;
+  $("setupError").textContent = "";
+  if (!scorer || !team1Name || !team2Name || team1Name.toLowerCase() === team2Name.toLowerCase() ||
+      overs < 1 || overs > 50 || playersPerTeam < 2 || playersPerTeam > 15 ||
+      !tossWinner || !decision) {
+    $("setupError").textContent = "Choose the scorer, distinct teams, overs, players per side and toss details.";
+    return;
+  }
+  try {
+    const team1 = await findOrCreateTeam(team1Name);
+    const team2 = await findOrCreateTeam(team2Name);
+    if (!squad1.length) squad1 = (await api("team_players?team_id=eq." + team1.id + "&select=*&order=name.asc")).map(p => p.name);
+    if (!squad2.length) squad2 = (await api("team_players?team_id=eq." + team2.id + "&select=*&order=name.asc")).map(p => p.name);
+    if (squad1.length < 2 || squad2.length < 2 || squad1.length > 15 || squad2.length > 15) {
+      $("setupError").textContent = "Each playing squad needs 2–15 players. Enter names or choose teams with saved squads.";
+      return;
+    }
+    await ensureTeamSquad(team1.id, squad1);
+    await ensureTeamSquad(team2.id, squad2);
+    const firstBatKey = decision === "bat" ? tossWinner : (tossWinner === "team1" ? "team2" : "team1");
+    const firstBatId = firstBatKey === "team1" ? team1.id : team2.id;
+    const scheduledValue = $("scheduledAt").value;
+    const match = (await api("matches", {
+      method: "POST",
+      body: JSON.stringify({
+        tournament_id: state.tournament.id,
+        team1: team1Name, team2: team2Name,
+        team1_id: team1.id, team2_id: team2.id,
+        innings1_batting_team_id: firstBatId,
+        overs, players_per_team: playersPerTeam,
+        toss_winner: tossWinner === "team1" ? team1Name : team2Name,
+        toss_decision: decision,
+        round_name: $("roundName").value.trim() || null,
+        scheduled_at: scheduledValue ? new Date(scheduledValue).toISOString() : null,
+        venue: state.tournament.venue || null,
+        status: "live", current_innings: 1, created_by: scorer
+      })
+    }))[0];
+    const matchPlayers = [
+      ...squad1.map(name => ({ match_id: match.id, tournament_id: state.tournament.id, team_id: team1.id, team: "team1", name })),
+      ...squad2.map(name => ({ match_id: match.id, tournament_id: state.tournament.id, team_id: team2.id, team: "team2", name }))
+    ];
+    await api("players", { method: "POST", body: JSON.stringify(matchPlayers) });
+    await api("innings", {
+      method: "POST",
+      body: JSON.stringify({
+        match_id: match.id, innings_no: 1,
+        batting_team: firstBatKey, bowling_team: firstBatKey === "team1" ? "team2" : "team1",
+        status: "live"
+      })
+    });
+    await api("tournaments?id=eq." + state.tournament.id, {
+      method: "PATCH", body: JSON.stringify({ status: "live", updated_at: new Date().toISOString() }),
+      prefer: "return=minimal"
+    });
+    localStorage.setItem("groundscore_scorer", scorer);
+    state.lineupConfirmed = false;
+    state.selectedScoreTab = "scorer";
+    await loadMatch(match.id);
+    toast("Match ready. Confirm the opening players.");
+  } catch (error) { $("setupError").textContent = error.message; }
+}
+
+function stopPolling() {
+  if (state.poll) clearInterval(state.poll);
+  state.poll = null;
+}
+async function loadMatch(matchId) {
+  stopPolling();
+  const matchRows = await api("matches?id=eq." + matchId + "&select=*");
+  state.match = matchRows[0];
+  if (!state.match) throw new Error("Match not found.");
+  if (state.match.tournament_id) {
+    const tournaments = await api("tournaments?id=eq." + state.match.tournament_id + "&select=*");
+    state.tournament = tournaments[0] || null;
+  }
+  const [innings, players, balls] = await Promise.all([
+    api("innings?match_id=eq." + matchId + "&select=*&order=innings_no.asc"),
+    api("players?match_id=eq." + matchId + "&select=*&order=name.asc"),
+    api("balls?match_id=eq." + matchId + "&select=*&order=delivery_number.asc,created_at.asc")
+  ]);
+  state.innings = innings;
+  state.players = players;
+  state.balls = balls;
+  state.lineupConfirmed = activeBalls(state.match.current_innings).length > 0;
+  if (state.match.status === "finished") {
+    renderSummary();
+    showView("summaryView");
+    return;
+  }
+  showView("scoreView");
+  renderScore();
+  setActiveScoreTab(state.selectedScoreTab || "scorer");
+  state.poll = setInterval(() => refreshLiveMatch(matchId).catch(() => {}), 8000);
+}
+async function refreshLiveMatch(matchId) {
+  if (!state.match || state.match.id !== matchId || state.match.status === "finished") return;
+  const [matches, innings, balls] = await Promise.all([
+    api("matches?id=eq." + matchId + "&select=*"),
+    api("innings?match_id=eq." + matchId + "&select=*&order=innings_no.asc"),
+    api("balls?match_id=eq." + matchId + "&select=*&order=delivery_number.asc,created_at.asc")
+  ]);
+  if (!matches[0]) return;
+  const oldBalls = state.balls;
+  const oldIds = new Set(oldBalls.filter(b => !b.voided_at).map(b => b.id));
+  const added = balls.filter(b => !b.voided_at && !oldIds.has(b.id));
+  const oldByInnings = {};
+  oldBalls.filter(b => !b.voided_at).forEach(b => {
+    const key = b.innings_no;
+    if (!oldByInnings[key]) oldByInnings[key] = [];
+    oldByInnings[key].push(b);
+  });
+  state.match = matches[0];
+  state.innings = innings;
+  state.balls = balls;
+  if (state.match.status === "finished") {
+    stopPolling(); renderSummary(); showView("summaryView"); return;
+  }
+  renderScore();
+  if (added.length) {
+    const latest = added[added.length - 1];
+    const oldRows = oldByInnings[latest.innings_no] || [];
+    const oldTotal = oldRows.reduce((sum,b) => sum + Number(b.total_runs || 0), 0);
+    const playerRuns = {};
+    oldRows.forEach(b => { playerRuns[b.striker_id] = (playerRuns[b.striker_id] || 0) + Number(b.runs_off_bat || 0); });
+    checkMilestones(latest, oldTotal, playerRuns[latest.striker_id] || 0);
+  }
+  if (state.selectedScoreTab === "scorecard") renderScorecard();
+  if (state.selectedScoreTab === "commentary") renderCommentary();
+}
+function fillSelect(element, players, selectedId, placeholder) {
+  element.innerHTML = '<option value="">' + esc(placeholder) + "</option>" +
+    players.map(player => '<option value="' + esc(player.id) + '">' + esc(player.name) + "</option>").join("");
+  if (selectedId && players.some(player => player.id === selectedId)) element.value = selectedId;
+}
+function renderScore() {
+  const innings = currentInnings();
+  if (!innings) return;
+  const stats = inningsStats(state.balls, innings.innings_no, state.match.overs);
+  const first = state.innings.find(i => Number(i.innings_no) === 1);
+  const firstStats = first ? inningsStats(state.balls, 1, state.match.overs) : null;
+  const target = Number(state.match.current_innings) === 2 && firstStats ? firstStats.total + 1 : null;
+  const remaining = Math.max(0, Number(state.match.overs) * 6 - stats.legalBalls);
+  const runsNeeded = target === null ? null : Math.max(0, target - stats.total);
+  const requiredRate = target === null ? null : (remaining ? runsNeeded / (remaining / 6) : (runsNeeded ? Infinity : 0));
+  $("matchTitle").textContent = state.match.team1 + " vs " + state.match.team2;
+  $("matchSubTitle").textContent = (state.tournament?.name || "Friendly match") + " · " +
+    (state.match.round_name || (state.match.overs + " overs"));
+  $("matchStatus").textContent = state.match.status === "live" ? "LIVE" : state.match.status.toUpperCase();
+  $("inningsLabel").textContent = (Number(state.match.current_innings) === 1 ? "1st" : "2nd") + " innings · " + teamName(innings.batting_team);
+  $("scoreText").textContent = stats.total + "/" + stats.wickets;
+  $("oversText").textContent = stats.overs + " / " + state.match.overs + " ov";
+  $("targetText").textContent = target === null ? "" : (runsNeeded === 0 ? "Target achieved" : "Target " + target + " · Need " + runsNeeded + " off " + remaining);
+  $("runRate").textContent = stats.runRateText;
+  $("requiredRate").textContent = target === null ? "—" : (Number.isFinite(requiredRate) ? requiredRate.toFixed(2) : "—");
+  $("scoreTournamentName").textContent = state.tournament?.name || "No tournament";
+  $("detailMatchTitle").textContent = state.match.team1 + " vs " + state.match.team2;
+  $("scorecardInnings").textContent = teamName(innings.batting_team) + " · " + stats.total + "/" + stats.wickets;
+  $("matchFacts").innerHTML = [
+    ["Overs", state.match.overs], ["Players per side", state.match.players_per_team || state.players.filter(p => p.team === "team1").length],
+    ["Toss", state.match.toss_winner + " · chose to " + state.match.toss_decision],
+    ["Scorer", state.match.created_by], ["Venue", state.match.venue || state.tournament?.venue || "—"],
+    ["Scheduled", state.match.scheduled_at ? new Date(state.match.scheduled_at).toLocaleString() : "—"]
+  ].map(row => '<div class="row"><span>' + esc(row[0]) + '</span><strong>' + esc(row[1]) + "</strong></div>").join("");
+  $("team1DetailName").textContent = state.match.team1;
+  $("team2DetailName").textContent = state.match.team2;
+  $("team1PlayerList").innerHTML = playersFor("team1").map(p => '<div class="player-list-item">' + esc(p.name) + "</div>").join("");
+  $("team2PlayerList").innerHTML = playersFor("team2").map(p => '<div class="player-list-item">' + esc(p.name) + "</div>").join("");
+  const batting = playersFor(innings.batting_team);
+  const bowling = playersFor(innings.bowling_team);
+  const opening = {
+    strikerId: $("striker").value || "",
+    nonStrikerId: $("nonStriker").value || "",
+    bowlerId: $("bowler").value || ""
+  };
+  const current = currentBattingState(state.balls, innings.innings_no, opening);
+  state.current = current;
+  fillSelect($("striker"), batting, current.strikerId || opening.strikerId, "Select striker");
+  fillSelect($("nonStriker"), batting, current.nonStrikerId || opening.nonStrikerId, "Select non-striker");
+  const availableBowlers = current.needsNewBowler ? bowling.filter(p => p.id !== current.previousOverBowlerId) : bowling;
+  fillSelect($("bowler"), availableBowlers, current.bowlerId || opening.bowlerId, current.needsNewBowler ? "Choose new bowler" : "Select bowler");
+  const activeBatters = [current.strikerId || $("striker").value, current.nonStrikerId || $("nonStriker").value].filter(Boolean);
+  fillSelect($("wicketBatter"), batting.filter(p => activeBatters.includes(p.id)), "", "Choose batter");
+  const dismissed = new Set(activeBalls(innings.innings_no).filter(b => b.wicket).map(b => b.dismissed_batsman_id));
+  const incoming = batting.filter(p => !dismissed.has(p.id) && !activeBatters.includes(p.id));
+  fillSelect($("incomingBatter"), incoming, "", incoming.length ? "Choose incoming batter" : "No batter remaining");
+  const scorer = localScorer();
+  const allOut = stats.wickets >= Math.max(1, batting.length - 1);
+  const oversDone = stats.legalBalls >= Number(state.match.overs) * 6;
+  const chaseDone = target !== null && stats.total >= target;
+  const closed = allOut || oversDone || chaseDone;
+  const canScore = !!scorer && !closed && state.match.status === "live";
+  $("stickyStriker").textContent = playerName(current.strikerId || $("striker").value);
+  $("stickyNonStriker").textContent = playerName(current.nonStrikerId || $("nonStriker").value);
+  $("stickyBowler").textContent = playerName(current.bowlerId || $("bowler").value);
+  $("ballText").textContent = current.overNumber + "." + current.ballNumber + " · " + (current.needsNewBowler ? "New over — choose bowler" : "Next delivery");
+  $("lineupHint").textContent = !scorer ? "Join this tournament to score. You are viewing as a spectator." :
+    (current.needsNewBowler && !current.bowlerId ? "Select the next bowler before scoring." :
+    (activeBalls(innings.innings_no).length === 0 ? "Select both opening batters and the opening bowler." : "Scoring as " + scorer));
+  $("confirmLineupBtn").textContent = state.lineupConfirmed ? "Players confirmed ✓" : "Confirm players";
+  $("confirmLineupBtn").classList.toggle("confirmed", state.lineupConfirmed);
+  document.querySelectorAll("[data-quick-run],#openExtrasBtn,#openWicketBtn").forEach(button => {
+    button.disabled = !canScore || !state.lineupConfirmed || !current.strikerId || !current.nonStrikerId || !current.bowlerId;
+  });
+  $("undoBtn").disabled = !scorer || !activeBalls(innings.innings_no).length;
+  $("endInningsBtn").disabled = !scorer;
+  $("endInningsBtn").textContent = target !== null && chaseDone ? "Finish chase →" : "End innings →";
+  $("scoreError").textContent = closed ? (allOut ? "All out — end the innings." : oversDone ? "Over limit reached — end the innings." : "Target reached — finish the chase.") : "";
+  renderOverStrip(innings.innings_no);
+}
+function confirmLineup() {
+  if (!localScorer()) { toast("Join the tournament before scoring"); return; }
+  if (!$("striker").value || !$("nonStriker").value || !$("bowler").value ||
+      $("striker").value === $("nonStriker").value) {
+    toast("Choose two different opening batters and a bowler");
+    return;
+  }
+  state.lineupConfirmed = true;
+  toast("Players confirmed");
+  renderScore();
+}
+function renderOverStrip(inningsNo) {
+  const rows = activeBalls(inningsNo);
+  if (!rows.length) {
+    $("overBalls").innerHTML = '<span class="tiny-muted">No deliveries yet</span>';
+    $("overSummary").textContent = "0 runs";
+    return;
+  }
+  const last = rows[rows.length - 1];
+  const overNo = Number(last.over_number);
+  const currentOver = rows.filter(b => Number(b.over_number) === overNo);
+  $("overBalls").innerHTML = currentOver.map(ball => {
+    const label = ball.wicket ? "W" : ball.extra_type === "wide" ? "WD" : ball.extra_type === "no-ball" ? "NB" :
+      ball.extra_type === "bye" ? "B" : ball.extra_type === "leg-bye" ? "LB" :
+      (Number(ball.total_runs) === 0 ? "·" : String(ball.total_runs));
+    const cls = ball.wicket ? "wicket" : ball.extra_type ? "extra" : ([4,6].includes(Number(ball.runs_off_bat)) ? "boundary" : "");
+    return '<span class="over-ball ' + cls + '">' + label + "</span>";
+  }).join("");
+  const total = currentOver.reduce((sum,b) => sum + Number(b.total_runs), 0);
+  $("overSummary").textContent = total + " runs · " + currentOver.filter(b => !["wide","no-ball"].includes(b.extra_type)).length + " legal";
+}
+function currentLineup() {
+  return {
+    strikerId: $("striker").value,
+    nonStrikerId: $("nonStriker").value,
+    bowlerId: $("bowler").value
+  };
+}
+function makeIdempotencyKey() {
+  if (!state.pendingKey) state.pendingKey = (crypto.randomUUID ? crypto.randomUUID() :
+    String(Date.now()) + "-" + Math.random().toString(16).slice(2));
+  return state.pendingKey;
+}
+async function submitDelivery(input) {
+  if (state.saving) return;
+  const innings = currentInnings();
+  if (!innings) { toast("No active innings"); return; }
+  if (!localScorer()) { toast("Join the tournament before scoring"); return; }
+  const lineup = currentLineup();
+  const built = buildDelivery({
+    matchId: state.match.id,
+    inningsNo: innings.innings_no,
+    balls: state.balls,
+    players: state.players,
+    battingTeam: innings.batting_team,
+    bowlingTeam: innings.bowling_team,
+    strikerId: lineup.strikerId,
+    nonStrikerId: lineup.nonStrikerId,
+    bowlerId: lineup.bowlerId,
+    scorerName: localScorer(),
+    oversLimit: Number(state.match.overs),
+    batRuns: input.batRuns || 0,
+    extraType: input.extraType || "",
+    extraRuns: input.extraRuns || 0,
+    wicket: input.wicket || "",
+    dismissedBatsmanId: input.dismissedBatsmanId || "",
+    incomingBatterId: input.incomingBatterId || "",
+    crossedBeforeWicket: !!input.crossedBeforeWicket
+  });
+  if (!built.ok) {
+    $("scoreError").textContent = built.errors.join(" ");
+    toast(built.errors[0]);
+    return;
+  }
+  const ball = { ...built.ball, idempotency_key: makeIdempotencyKey() };
+  state.saving = true;
+  document.querySelectorAll("[data-quick-run],#openExtrasBtn,#openWicketBtn,#saveExtrasBtn,#saveWicketBtn").forEach(button => button.disabled = true);
+  try {
+    const before = inningsStats(state.balls, innings.innings_no, state.match.overs);
+    const previousBatterRuns = activeBalls(innings.innings_no)
+      .filter(b => b.striker_id === ball.striker_id)
+      .reduce((sum,b) => sum + Number(b.runs_off_bat || 0), 0);
+    await api("balls", { method: "POST", body: JSON.stringify(ball) });
+    state.pendingKey = null;
+    closeSheets();
+    $("wicketType").value = "bowled";
+    $("extraKind").value = "wide";
+    $("extraBatRuns").value = "0";
+    $("extraRunCount").value = "0";
+    $("runOutRuns").value = "0";
+    $("crossedBeforeWicket").checked = false;
+    await loadMatch(state.match.id);
+    checkMilestones(ball, before.total, previousBatterRuns);
+    toast(ball.wicket ? "Wicket recorded" : "Delivery saved");
+  } catch (error) {
+    $("scoreError").textContent = error.message;
+    toast("Delivery not saved: " + error.message);
+  } finally {
+    state.saving = false;
+    renderScore();
+  }
+}
+function quickRun(runs) {
+  submitDelivery({ batRuns: Number(runs) });
+}
+function openSheet(id) {
+  $(id).classList.remove("hidden");
+  document.body.classList.add("sheet-open");
+}
+function closeSheets() {
+  $("extrasSheet").classList.add("hidden");
+  $("wicketSheet").classList.add("hidden");
+  document.body.classList.remove("sheet-open");
+}
+function openExtras() {
+  $("extraKind").value = "wide"; $("extraBatRuns").value = "0"; $("extraRunCount").value = "0";
+  updateExtraHelp();
+  openSheet("extrasSheet");
+}
+function updateExtraHelp() {
+  const kind = $("extraKind").value;
+  const isWide = kind === "wide";
+  const isBye = kind === "bye" || kind === "leg-bye";
+  $("extraBatRuns").disabled = isWide || isBye;
+  if (isWide || isBye) $("extraBatRuns").value = "0";
+  $("extraHelp").textContent = kind === "wide" ? "A wide adds one automatic penalty run. Select any additional completed runs below." :
+    kind === "no-ball" ? "A no-ball adds one automatic penalty run. Add bat runs and/or additional completed runs." :
+    "Byes and leg-byes count as legal balls. Enter the completed runs under Additional runs.";
+}
+function saveExtras() {
+  submitDelivery({
+    extraType: $("extraKind").value,
+    batRuns: Number($("extraBatRuns").value),
+    extraRuns: Number($("extraRunCount").value)
+  });
+}
+function openWicket() {
+  const innings = currentInnings();
+  const batting = playersFor(innings.batting_team);
+  const current = currentBattingState(state.balls, innings.innings_no, currentLineup());
+  const currentIds = [current.strikerId, current.nonStrikerId].filter(Boolean);
+  fillSelect($("wicketBatter"), batting.filter(p => currentIds.includes(p.id)), current.strikerId, "Choose batter");
+  const dismissed = new Set(activeBalls(innings.innings_no).filter(b => b.wicket).map(b => b.dismissed_batsman_id));
+  const available = batting.filter(p => !dismissed.has(p.id) && !currentIds.includes(p.id));
+  fillSelect($("incomingBatter"), available, "", available.length ? "Choose incoming batter" : "No batter remaining");
+  $("wicketType").value = "bowled";
+  $("runOutRuns").value = "0";
+  $("crossedBeforeWicket").checked = false;
+  $("runOutFields").classList.add("hidden");
+  $("wicketHelp").textContent = available.length ? "Choose the dismissed batter and the incoming batter." : "No recognised batter remains. Confirm the final wicket.";
+  openSheet("wicketSheet");
+}
+function saveWicket() {
+  const wicket = $("wicketType").value;
+  submitDelivery({
+    wicket,
+    dismissedBatsmanId: $("wicketBatter").value,
+    incomingBatterId: $("incomingBatter").value,
+    batRuns: wicket === "run out" ? Number($("runOutRuns").value) : 0,
+    crossedBeforeWicket: $("crossedBeforeWicket").checked
+  });
+}
+async function undoBall() {
+  if (!localScorer()) { toast("Join the tournament before correcting scores"); return; }
+  const rows = activeBalls(state.match.current_innings);
+  if (!rows.length) { toast("No delivery to undo"); return; }
+  const last = rows[rows.length - 1];
+  const label = last.wicket ? "wicket" : Number(last.total_runs) + " run(s)";
+  if (!confirm("Undo the last delivery (" + label + ")? The entry will be marked void and removed from the scorecard.")) return;
+  try {
+    await api("balls?id=eq." + last.id, {
+      method: "PATCH",
+      body: JSON.stringify({ voided_at: new Date().toISOString(), voided_by: localScorer() }),
+      prefer: "return=minimal"
+    });
+    await loadMatch(state.match.id);
+    toast("Last delivery undone");
+  } catch (error) { toast("Undo failed: " + error.message); }
+}
+async function endInnings() {
+  if (!localScorer()) { toast("Join the tournament before managing innings"); return; }
+  const innings = currentInnings();
+  const nextNo = Number(state.match.current_innings) + 1;
+  if (!confirm(nextNo > 2 ? "Finish this match and calculate the result?" : "End the first innings and begin the chase?")) return;
+  try {
+    await api("innings?id=eq." + innings.id, {
+      method: "PATCH", body: JSON.stringify({ status: "completed" }), prefer: "return=minimal"
+    });
+    if (nextNo > 2) {
+      await finishMatch(true);
+      return;
+    }
+    await api("innings", {
+      method: "POST",
+      body: JSON.stringify({
+        match_id: state.match.id, innings_no: 2,
+        batting_team: innings.bowling_team, bowling_team: innings.batting_team, status: "live"
+      })
+    });
+    await api("matches?id=eq." + state.match.id, {
+      method: "PATCH", body: JSON.stringify({ current_innings: 2, updated_at: new Date().toISOString() }),
+      prefer: "return=minimal"
+    });
+    state.lineupConfirmed = false;
+    await loadMatch(state.match.id);
+    toast("Second innings started");
+  } catch (error) { toast("Could not end innings: " + error.message); }
+}
+async function finishMatch(alreadyConfirmed) {
+  if (!localScorer()) { toast("Join the tournament before finishing a match"); return; }
+  if (!alreadyConfirmed && !confirm("Finish the match and publish the result?")) return;
+  stopPolling();
+  await api("matches?id=eq." + state.match.id, {
+    method: "PATCH",
+    body: JSON.stringify({ status: "finished", finished_at: new Date().toISOString(), updated_at: new Date().toISOString() }),
+    prefer: "return=minimal"
+  });
+  await loadMatch(state.match.id);
+  toast("Match completed");
+}
+async function shareMatch() {
+  const url = new URL(window.location.href);
+  url.searchParams.set("match", state.match.id);
+  try {
+    await navigator.clipboard.writeText(url.toString());
+    toast("Live score link copied");
+  } catch (_) { window.prompt("Copy the live score link:", url.toString()); }
+}
+function checkMilestones(ball, oldTeamTotal, oldPlayerRuns) {
+  const innings = currentInnings();
+  const teamTotal = inningsStats(state.balls, innings.innings_no, state.match.overs).total;
+  const thresholds = [50,100,150,200,250,300];
+  const teamMark = thresholds.find(n => oldTeamTotal < n && teamTotal >= n);
+  if (teamMark) {
+    const key = "team:" + state.match.id + ":" + innings.innings_no + ":" + teamMark;
+    if (!state.milestones.has(key)) {
+      state.milestones.add(key);
+      showMilestone("TEAM MILESTONE", teamMark === 50 ? "TEAM FIFTY!" : teamMark === 100 ? "TEAM CENTURY!" : "TEAM " + teamMark + "!", teamName(innings.batting_team) + " reached " + teamMark);
+    }
+  }
+  const currentPlayerRuns = activeBalls(innings.innings_no).filter(b => b.striker_id === ball.striker_id)
+    .reduce((sum,b) => sum + Number(b.runs_off_bat || 0), 0);
+  const playerMark = thresholds.find(n => oldPlayerRuns < n && currentPlayerRuns >= n);
+  if (playerMark) {
+    const key = "player:" + state.match.id + ":" + innings.innings_no + ":" + ball.striker_id + ":" + playerMark;
+    if (!state.milestones.has(key)) {
+      state.milestones.add(key);
+      showMilestone("BATTER MILESTONE", playerMark === 50 ? "HALF-CENTURY!" : playerMark === 100 ? "CENTURY!" : playerMark + "!", playerName(ball.striker_id) + " reached " + playerMark + " runs");
+    }
+  }
+}
+function showMilestone(kicker, title, detail) {
+  $("milestoneKicker").textContent = kicker;
+  $("milestoneTitle").textContent = title;
+  $("milestoneDetail").textContent = detail;
+  $("milestoneOverlay").classList.remove("hidden");
+}
+function htmlTable(headers, rows, emptyText) {
+  if (!rows.length) return '<div class="empty">' + esc(emptyText || "No figures yet.") + "</div>";
+  return '<table class="data-table"><thead><tr>' + headers.map(h => "<th>" + esc(h) + "</th>").join("") +
+    "</tr></thead><tbody>" + rows.map(row => "<tr>" + row.map(cell => "<td>" + cell + "</td>").join("") + "</tr>").join("") + "</tbody></table>";
+}
+function renderScorecard() {
+  const innings = currentInnings();
+  if (!innings) return;
+  const batting = playersFor(innings.batting_team);
+  const bowling = playersFor(innings.bowling_team);
+  const batRows = battingScorecard(state.balls, batting, innings.innings_no);
+  const bowlRows = bowlingScorecard(state.balls, bowling, innings.innings_no);
+  $("battingScorecard").innerHTML = htmlTable(
+    ["Batter","Dismissal","R","B","4s","6s","SR"],
+    batRows.map(p => [esc(p.name), esc(p.dismissal), p.runs, p.balls, p.fours, p.sixes, p.strikeRate.toFixed(1)]),
+    "No batting figures yet."
+  );
+  $("bowlingScorecard").innerHTML = htmlTable(
+    ["Bowler","O","M","R","W","Eco"],
+    bowlRows.map(p => [esc(p.name), p.overs, p.maidens, p.runs, p.wickets, p.economy.toFixed(2)]),
+    "No bowling figures yet."
+  );
+  const stats = inningsStats(state.balls, innings.innings_no, state.match.overs);
+  const extras = stats.extras;
+  const extrasTotal = extras.wides + extras.noBalls + extras.byes + extras.legByes;
+  $("extrasSummary").innerHTML = [
+    ["Wides",extras.wides],["No-balls",extras.noBalls],["Byes",extras.byes],["Leg-byes",extras.legByes],["Total extras",extrasTotal]
+  ].map(row => '<div class="row"><span>' + esc(row[0]) + '</span><strong>' + row[1] + "</strong></div>").join("");
+  const fow = fallOfWickets(state.balls, innings.innings_no, state.players);
+  $("fallWickets").innerHTML = fow.length ? fow.map(item =>
+    '<div class="row"><span>' + item.wicket + " - " + item.score + '</span><strong>' + esc(item.batter) + " (" + item.overs + ")</strong></div>"
+  ).join("") : '<div class="empty">No wickets yet.</div>';
+  $("inningsSummary").innerHTML = state.innings.map(i => {
+    const s = inningsStats(state.balls, i.innings_no, state.match.overs);
+    return '<div class="innings-chip"><span>' + esc(teamName(i.batting_team)) + '</span><strong>' +
+      s.total + "/" + s.wickets + " · " + s.overs + " ov · RR " + s.runRateText + "</strong></div>";
+  }).join("");
+}
+function ballOutcome(ball) {
+  if (ball.wicket) return "WICKET · " + ball.wicket.toUpperCase();
+  if (ball.extra_type === "wide") return "WIDE +" + ball.total_runs;
+  if (ball.extra_type === "no-ball") return "NO BALL +" + ball.total_runs;
+  if (ball.extra_type === "bye") return ball.extra_runs + " BYE";
+  if (ball.extra_type === "leg-bye") return ball.extra_runs + " LEG-BYE";
+  if (ball.runs_off_bat === 4 && ball.is_boundary) return "FOUR";
+  if (ball.runs_off_bat === 6 && ball.is_boundary) return "SIX";
+  return ball.total_runs === 0 ? "DOT BALL" : ball.total_runs + " RUN" + (ball.total_runs === 1 ? "" : "S");
+}
+function renderCommentary() {
+  const rows = [...state.balls].filter(b => !b.voided_at).sort((a,b) => Number(a.delivery_number) - Number(b.delivery_number)).reverse();
+  $("commentaryList").innerHTML = rows.length ? rows.map(ball => {
+    const overLabel = (Number(ball.over_number) + 1) + "." + ball.ball_number;
+    return '<article class="commentary-item"><span class="commentary-over">' + overLabel + '</span><div class="commentary-copy">' +
+      esc(playerName(ball.striker_id)) + " · " + esc(playerName(ball.bowler_id)) +
+      '<small>Scored by ' + esc(ball.scorer_name) + " · Delivery #" + ball.delivery_number + "</small></div><strong class=\"commentary-result\">" +
+      esc(ballOutcome(ball)) + "</strong></article>";
+  }).join("") : '<div class="empty">No deliveries recorded yet.</div>';
+}
+function renderMatchDetails() {
+  $("scoreTournamentName").textContent = state.tournament?.name || "Friendly match";
+}
+function renderSummary() {
+  const result = matchResult(state.innings, state.balls, state.players, state.match);
+  $("resultText").textContent = result.text;
+  $("summaryToss").textContent = "Toss: " + state.match.toss_winner + " chose to " + state.match.toss_decision +
+    (state.tournament ? " · " + state.tournament.name : "");
+  const battingTotals = {};
+  state.players.forEach(player => {
+    const rows = state.balls.filter(b => !b.voided_at && b.striker_id === player.id);
+    const runs = rows.reduce((sum,b) => sum + Number(b.runs_off_bat || 0), 0);
+    const balls = rows.filter(b => b.extra_type !== "wide").length;
+    const fours = rows.filter(b => b.is_boundary && b.runs_off_bat === 4).length;
+    const sixes = rows.filter(b => b.is_boundary && b.runs_off_bat === 6).length;
+    if (balls || runs) battingTotals[player.id] = { runs, balls, fours, sixes };
+  });
+  $("battingSummary").innerHTML = Object.entries(battingTotals).sort((a,b) => b[1].runs - a[1].runs).slice(0,8).map(([id,s]) =>
+    '<div class="row"><span>' + esc(playerName(id)) + " · " + s.balls + " balls · " + s.fours + "×4 · " + s.sixes + "×6</span><strong>" + s.runs + "</strong></div>"
+  ).join("") || '<div class="empty">No batting figures.</div>';
+  const wickets = {};
+  state.balls.filter(b => !b.voided_at && b.wicket && ["bowled","caught","lbw","stumped","hit wicket"].includes(b.wicket))
+    .forEach(b => { wickets[b.bowler_id] = (wickets[b.bowler_id] || 0) + 1; });
+  $("bowlingSummary").innerHTML = Object.entries(wickets).sort((a,b) => b[1]-a[1]).map(([id,count]) =>
+    '<div class="row"><span>' + esc(playerName(id)) + "</span><strong>" + count + " wkts</strong></div>"
+  ).join("") || '<div class="empty">No credited wickets.</div>';
+  $("summaryInnings").innerHTML = state.innings.map(i => {
+    const s = inningsStats(state.balls, i.innings_no, state.match.overs);
+    return '<div class="row"><span>' + esc(teamName(i.batting_team)) + '</span><strong>' +
+      s.total + "/" + s.wickets + " · " + s.overs + " ov · RR " + s.runRateText + "</strong></div>";
+  }).join("");
+  const moments = [];
+  state.balls.filter(b => !b.voided_at).forEach(b => {
+    if (b.is_boundary && b.runs_off_bat === 6) moments.push("Six by " + playerName(b.striker_id));
+    if (b.is_boundary && b.runs_off_bat === 4) moments.push("Four by " + playerName(b.striker_id));
+    if (b.wicket) moments.push(playerName(b.dismissed_batsman_id) + " out — " + b.wicket);
+  });
+  $("momentsSummary").innerHTML = moments.slice(0,12).map(x => '<div class="row"><span>' + esc(x) + "</span></div>").join("") ||
+    '<div class="empty">No notable moments recorded.</div>';
+}
+async function renderStandings() {
+  if ((state.tournament.format || "friendly") !== "league") {
+    $("standingsTable").innerHTML = '<div class="empty">Points standings are available for league / round-robin tournaments.</div>';
+    return;
+  }
+  const matches = await api("matches?tournament_id=eq." + state.tournament.id + "&select=*&order=created_at.asc");
+  if (!state.teams.length) { $("standingsTable").innerHTML = '<div class="empty">Add teams to calculate the table.</div>'; return; }
+  const ids = matches.map(m => m.id);
+  let allBalls = [];
+  if (ids.length) allBalls = await api("balls?match_id=in.(" + ids.join(",") + ")&select=*&order=delivery_number.asc");
+  const ballsByMatch = {};
+  allBalls.forEach(ball => { (ballsByMatch[ball.match_id] ||= []).push(ball); });
+  const rows = tournamentStandings(matches, ballsByMatch, state.teams);
+  $("standingsTable").innerHTML = htmlTable(
+    ["Team","P","W","L","T","Pts","NRR"],
+    rows.map((row,index) => [
+      '<strong>' + (index + 1) + ". " + esc(row.name) + "</strong>",
+      row.played,row.won,row.lost,row.tied,row.points,
+      (row.nrr >= 0 ? "+" : "") + row.nrr.toFixed(3)
+    ]),
+    "No completed league matches yet."
+  );
+}
+async function backToTournament() {
+  if (!state.tournament) { await loadHome(); return; }
+  await openTournament(state.tournament.id);
+  setActiveTournamentTab("matches");
+}
+
+function attachEvents() {
+  bind("startTournamentBtn","click",() => showView("tournamentCreateView"));
+  bind("joinTournamentBtn","click",() => listTournaments().catch(showError));
+  bind("reloadHomeBtn","click",() => loadHome().catch(showError));
+  bind("createTournamentBtn","click",createTournament);
+  bind("backHomeBtn","click",() => loadHome().catch(showError));
+  bind("joinBackBtn","click",() => listTournaments().catch(showError));
+  bind("confirmJoinBtn","click",confirmJoin);
+  bind("viewTournamentBtn","click",() => openTournament(state.tournament.id).catch(showError));
+  bind("tournamentHomeBtn","click",() => loadHome().catch(showError));
+  bind("tournamentJoinBtn","click",() => openJoin(state.tournament.id).catch(showError));
+  bind("tournamentNewMatchBtn","click",() => startMatchSetup().catch(showError));
+  bind("refreshTournamentBtn","click",() => refreshTournament().catch(showError));
+  bind("addTeamBtn","click",createTeam);
+  bind("matchSetupBackBtn","click",backToTournament);
+  bind("createMatchBtn","click",createMatch);
+  bind("confirmLineupBtn","click",confirmLineup);
+  bind("openExtrasBtn","click",openExtras);
+  bind("openWicketBtn","click",openWicket);
+  bind("saveExtrasBtn","click",saveExtras);
+  bind("saveWicketBtn","click",saveWicket);
+  bind("undoBtn","click",undoBall);
+  bind("endInningsBtn","click",endInnings);
+  bind("finishMatchBtn","click",() => finishMatch(false).catch(showError));
+  bind("shareMatchBtn","click",shareMatch);
+  bind("refreshBtn","click",() => loadMatch(state.match.id).catch(showError));
+  bind("backToTournamentBtn","click",backToTournament);
+  bind("summaryTournamentBtn","click",backToTournament);
+  bind("homeBtn","click",() => loadHome().catch(showError));
+  bind("brandHomeBtn","click",() => loadHome().catch(showError));
+  bind("milestoneClose","click",() => $("milestoneOverlay").classList.add("hidden"));
+  bind("extraKind","change",updateExtraHelp);
+  bind("wicketType","change",() => $("runOutFields").classList.toggle("hidden", $("wicketType").value !== "run out"));
+  bind("team1","change",() => onTeamNameChange("team1","players1").catch(showError));
+  bind("team2","change",() => onTeamNameChange("team2","players2").catch(showError));
+  bind("striker","change",() => { if (state.match) { state.lineupConfirmed = false; renderScore(); } });
+  bind("nonStriker","change",() => { if (state.match) { state.lineupConfirmed = false; renderScore(); } });
+  bind("bowler","change",() => { if (state.match) { state.lineupConfirmed = false; renderScore(); } });
+  document.querySelectorAll("[data-home]").forEach(button => button.addEventListener("click", () => loadHome().catch(showError)));
+  document.querySelectorAll("[data-score-tab]").forEach(button =>
+    button.addEventListener("click", () => setActiveScoreTab(button.dataset.scoreTab))
+  );
+  document.querySelectorAll("[data-tournament-tab]").forEach(button =>
+    button.addEventListener("click", () => setActiveTournamentTab(button.dataset.tournamentTab))
+  );
+  document.querySelectorAll("[data-quick-run]").forEach(button =>
+    button.addEventListener("click", () => quickRun(button.dataset.quickRun))
+  );
+  document.querySelectorAll("[data-close-sheet]").forEach(button =>
+    button.addEventListener("click", closeSheets)
+  );
+  ["extrasSheet","wicketSheet"].forEach(id => $(id).addEventListener("click", event => {
+    if (event.target.id === id) closeSheets();
+  }));
+  window.addEventListener("online", setNetwork);
+  window.addEventListener("offline", setNetwork);
+  window.addEventListener("beforeunload", stopPolling);
+}
+
+attachEvents();
+init().catch(error => {
+  $("configNotice").classList.remove("hidden");
+  $("configNotice").textContent = "GroundScore could not start: " + error.message;
+});
