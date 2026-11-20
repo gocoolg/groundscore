@@ -321,3 +321,11 @@ body.sheet-open{overflow:hidden}
   .coin-face{width:48px;height:48px;flex-basis:48px}
   .toss-choice-buttons{grid-template-columns:1fr 1fr}
 }
+
+/* Make coin toss controls unambiguously tappable on mobile browsers. */
+.toss-card{position:relative;isolation:isolate}
+.toss-call,.toss-card #flipCoinBtn{position:relative;z-index:2;pointer-events:auto;touch-action:manipulation}
+.toss-call{cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent}
+.toss-call:focus-visible,.toss-card #flipCoinBtn:focus-visible{outline:3px solid #f2c45f;outline-offset:2px}
+.toss-call.selected{background:#0a776e!important;color:#fff!important;border-color:#0a776e!important}
+.toss-card #flipCoinBtn:disabled{opacity:.7}
