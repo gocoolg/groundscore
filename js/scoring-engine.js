@@ -155,7 +155,7 @@ export function buildDelivery(input) {
     extra_type: extraType || null,
     extra_runs: totalExtras,
     wide_runs: extraType === "wide" ? 1 + extras : 0,
-    no_ball_runs: extraType === "no-ball" ? 1 : 0,
+    no_ball_runs: extraType === "no-ball" ? 1 + extras : 0,
     bye_runs: extraType === "bye" ? extras : 0,
     leg_bye_runs: extraType === "leg-bye" ? extras : 0,
     total_runs: totalRuns,
