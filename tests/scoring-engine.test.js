@@ -154,3 +154,14 @@ test("wicket with no incoming batter does not put dismissed player back at the c
   assert.equal(next.strikerId, "");
   assert.equal(next.nonStrikerId, "b");
 });
+
+test("the same player cannot be selected as striker and non-striker", () => {
+  const built = buildDelivery({
+    matchId: "match-1", inningsNo: 1, balls: [], players,
+    battingTeam: "team1", bowlingTeam: "team2", oversLimit: 10,
+    strikerId: "a", nonStrikerId: "a", bowlerId: "d",
+    scorerName: "Scorer", batRuns: 0
+  });
+  assert.equal(built.ok, false);
+  assert.ok(built.errors.some(message => message.includes("must be different players")));
+});
