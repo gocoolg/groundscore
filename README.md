@@ -49,3 +49,6 @@ The current no-login mode deliberately lets the public anonymous role read/write
 
 ## License
 MIT — see LICENSE.
+
+### Coin toss database fix
+If match creation reports that `toss_call` or `toss_result` is missing from the schema cache, run [`supabase/add_coin_toss_columns.sql`](supabase/add_coin_toss_columns.sql) in Supabase SQL Editor. This migration adds only the coin-toss fields and reloads the PostgREST schema. It is safe to run repeatedly and preserves existing match data.
