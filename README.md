@@ -8,7 +8,7 @@ A mobile-friendly cricket scoring and tournament app. Static HTML/CSS/JavaScript
 - Ball-by-ball score entry with runs, wides, no-balls, byes, leg-byes, extra-run selector and wickets.
 - Strike rotates on odd completed runs; 2/4/6 do not rotate; ends change after six legal balls.
 - Undo last delivery with confirmation.
-- Public live score polling every 12 seconds.
+- Public live score polling every 12 seconds, with a copyable direct match link.
 - Full-screen team and batter 50/100 milestone celebrations.
 - Match summary with result, batting figures, bowler wickets, run rates and notable moments.
 
@@ -25,7 +25,7 @@ python3 -m http.server 8080
 Open http://localhost:8080.
 
 ## GitHub Pages
-Settings → Pages → Deploy from branch → `main` → `/(root)`. Share `https://<username>.github.io/groundscore/`.
+Settings → Pages → Deploy from branch → `main` → `/(root)`. Share `https://<username>.github.io/groundscore/`. During a match, use Share score to copy a direct live-score link.
 
 ## Public access model
 There are no accounts by design. Anonymous visitors can read and write tournaments, members, matches and scores. This is convenient for a trusted recreational group but is not authenticated or tamper-proof: anyone who knows the Supabase project endpoint can potentially alter or delete data. Use authentication, server-side validation and audit logs for higher-trust events.
