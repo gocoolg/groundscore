@@ -83,7 +83,12 @@
       <div class="section-heading"><div><h2>Teams & squads</h2><p class="muted">Save a squad once and reuse it for matches.</p></div></div>
       <div class="card compact-card">
         <label>Team name<input id="newTeamName" placeholder="e.g. Pollachi XI" maxlength="60"></label>
-        <label>Squad names <span class="field-hint">Separate names with commas</span><textarea id="newTeamPlayers" rows="2" placeholder="Arun, Bala, Gokul, Karthik…"></textarea></label>
+        <div class="squad-field">
+          <div class="squad-label">Squad members</div>
+          <div class="chip-entry"><input id="newTeamPlayerInput" type="text" autocomplete="off" placeholder="Add player name and press Enter"><button id="addTeamPlayerBtn" type="button" class="chip-add" aria-label="Add squad player">＋</button></div>
+          <div id="newTeamPlayersChips" class="squad-chips" aria-live="polite"></div>
+          <textarea id="newTeamPlayers" class="hidden" tabindex="-1" aria-hidden="true"></textarea>
+        </div>
         <button id="addTeamBtn" class="btn btn-secondary btn-wide">＋ Add team and squad</button><p id="teamCreateError" class="form-error"></p>
       </div>
       <div id="teamCards" class="team-list"></div>
@@ -107,9 +112,19 @@
       <label>Round / fixture<input id="roundName" maxlength="60" placeholder="League match 1"></label>
     </div>
     <label>Team 1<input id="team1" list="teamNamesList" maxlength="60" placeholder="Choose or enter team"></label>
-    <label>Team 1 playing squad<textarea id="players1" rows="2" placeholder="Arun, Bala, Gokul…"></textarea></label>
+    <div class="squad-field">
+      <div class="squad-label">Team 1 playing squad</div>
+      <div class="chip-entry"><input id="players1Input" type="text" autocomplete="off" placeholder="Type a player name and press Enter"><button id="addPlayers1Btn" type="button" class="chip-add" aria-label="Add Team 1 player">＋</button></div>
+      <div id="players1Chips" class="squad-chips" aria-live="polite"></div>
+      <textarea id="players1" class="hidden" tabindex="-1" aria-hidden="true"></textarea>
+    </div>
     <label>Team 2<input id="team2" list="teamNamesList" maxlength="60" placeholder="Choose or enter team"></label>
-    <label>Team 2 playing squad<textarea id="players2" rows="2" placeholder="Karthik, Mani, Ravi…"></textarea></label>
+    <div class="squad-field">
+      <div class="squad-label">Team 2 playing squad</div>
+      <div class="chip-entry"><input id="players2Input" type="text" autocomplete="off" placeholder="Type a player name and press Enter"><button id="addPlayers2Btn" type="button" class="chip-add" aria-label="Add Team 2 player">＋</button></div>
+      <div id="players2Chips" class="squad-chips" aria-live="polite"></div>
+      <textarea id="players2" class="hidden" tabindex="-1" aria-hidden="true"></textarea>
+    </div>
     <datalist id="teamNamesList"></datalist>
     <div class="form-grid"><label>Scheduled date/time<input id="scheduledAt" type="datetime-local"></label><label>Players per side<input id="playersPerTeam" type="number" min="2" max="15" value="11"></label></div>
     <div class="form-section-title">Coin toss</div>
@@ -168,7 +183,10 @@
           <label><span>Non-striker</span><select id="nonStriker"><option value="">Select non-striker</option></select></label>
           <label><span>Bowler</span><select id="bowler"><option value="">Select bowler</option></select></label>
         </div>
-        <div class="crease-footer"><span id="lineupHint">Choose the opening batters and bowler.</span><button id="confirmLineupBtn" type="button" class="btn btn-secondary confirm-lineup-btn">Confirm players</button></div>
+        <div class="crease-footer">
+          <div class="crease-status"><span id="lineupStatusDot" class="lineup-status-dot"></span><span id="lineupHint">Choose the opening batters and bowler.</span></div>
+          <button id="confirmLineupBtn" type="button" class="confirm-lineup-btn" aria-label="Confirm players" title="Confirm players"><span aria-hidden="true">✓</span></button>
+        </div>
       </div>
 
       <div class="quick-score-card">
@@ -270,6 +288,13 @@
   <div class="milestone-card"><div class="milestone-icon">🏏</div><div id="milestoneKicker" class="eyebrow">MILESTONE</div><div id="milestoneTitle" class="milestone-title">FIFTY!</div><div id="milestoneDetail" class="muted"></div><button id="milestoneClose" class="btn btn-primary">Continue</button></div>
 </div>
 <div id="toast" class="toast hidden" role="status"></div>
+<div id="appLoader" class="app-loader hidden" role="status" aria-live="polite" aria-label="Loading">
+  <div class="loader-card">
+    <div class="cricket-loader" aria-hidden="true"><span class="loader-ball"></span><span class="loader-stumps"><i></i><i></i><i></i><b></b></span></div>
+    <strong id="loaderMessage">Getting the ground ready…</strong>
+    <span class="loader-caption">GROUND SCORE · PLEASE WAIT</span>
+  </div>
+</div>
 <footer>GroundScore · Cricket scoring, made simple.</footer>
 <script src="config.js"></script>
 <script type="module" src="app.js"></script>
