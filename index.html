@@ -70,7 +70,7 @@
       <button id="tournamentHomeBtn" class="back-link light">← All tournaments</button>
       <div class="eyebrow light-text">TOURNAMENT CENTRE</div>
       <h1 id="tournamentTitle">Tournament</h1><p id="tournamentMeta" class="muted-light"></p>
-      <div class="tournament-top-actions"><button id="tournamentJoinBtn" class="btn btn-outline-light">Join event</button><button id="tournamentNewMatchBtn" class="btn btn-primary">＋ New match</button><button id="openDeleteTournamentBtn" class="btn btn-danger-outline" type="button" aria-haspopup="dialog">Delete tournament</button></div>
+      <div class="tournament-top-actions"><button id="tournamentJoinBtn" class="btn btn-outline-light">Join event</button><button id="tournamentNewMatchBtn" class="btn btn-primary">＋ New match</button></div>
     </div>
     <div class="pill-tabs tournament-tabs">
       <button data-tournament-tab="matches" class="active">Matches</button>
@@ -100,6 +100,11 @@
     <section id="tMembersPanel" class="tournament-panel hidden">
       <div class="section-heading"><div><h2>Players & scorers</h2><p class="muted">People who joined this event.</p></div></div>
       <div id="memberList" class="member-chips"></div>
+      <div class="danger-zone">
+        <div><span class="danger-eyebrow">DANGER ZONE</span><h3>Delete this tournament</h3>
+          <p>Remove this tournament, its matches, scorecards, deliveries, teams and members permanently.</p></div>
+        <button id="openDeleteTournamentBtn" class="btn btn-danger" type="button" aria-haspopup="dialog">Delete tournament</button>
+      </div>
     </section>
   </section>
 
