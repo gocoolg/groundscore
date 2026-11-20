@@ -70,7 +70,9 @@ export function currentBattingState(balls, inningsNo, opening = {}) {
   return {
     strikerId,
     nonStrikerId,
-    bowlerId: needsNewBowler ? "" : (last.bowler_id || ""),
+    bowlerId: needsNewBowler
+      ? (opening.bowlerId && opening.bowlerId !== previousOverBowlerId ? opening.bowlerId : "")
+      : (last.bowler_id || ""),
     legalBalls,
     ballNumber: (legalBalls % 6) + 1,
     overNumber: Math.floor(legalBalls / 6),
