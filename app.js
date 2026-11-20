@@ -62,7 +62,7 @@ function setSquadNames(key, names) {
   const unique = [];
   const seen = new Set();
   (names || []).forEach(value => {
-    const name = String(value || "").trim().replace(/\\s+/g, " ");
+    const name = String(value || "").trim().replace(/\s+/g, " ");
     const normalized = name.toLocaleLowerCase();
     if (name && !seen.has(normalized)) { seen.add(normalized); unique.push(name); }
   });
