@@ -110,7 +110,7 @@ test("bowling figures exclude byes/leg-byes from runs conceded and run-outs from
   assert.equal(figures.runs, 2);
   assert.equal(figures.wickets, 0);
 });
-test("batting balls faced do not count wides, byes or leg-byes", () => {
+test("batting balls faced count no-balls and byes/leg-byes, but exclude wides", () => {
   const rows = [
     { innings_no: 1, striker_id: "a", runs_off_bat: 0, extra_type: "wide" },
     { innings_no: 1, striker_id: "a", runs_off_bat: 0, extra_type: "bye" },
@@ -120,6 +120,6 @@ test("batting balls faced do not count wides, byes or leg-byes", () => {
   ];
   const figures = battingScorecard(rows, players, 1).find(p => p.id === "a");
   assert.equal(figures.runs, 5);
-  assert.equal(figures.balls, 2);
+  assert.equal(figures.balls, 4);
   assert.equal(figures.fours, 1);
 });
