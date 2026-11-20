@@ -1,5 +1,6 @@
 import {
   buildDelivery,
+  deliveryNotation,
   inningsStats,
   currentBattingState,
   battingScorecard,
@@ -826,9 +827,7 @@ function renderOverStrip(inningsNo) {
   const overNo = Number(last.over_number);
   const currentOver = rows.filter(b => Number(b.over_number) === overNo);
   $("overBalls").innerHTML = currentOver.map(ball => {
-    const label = ball.wicket ? "W" : ball.extra_type === "wide" ? "WD" : ball.extra_type === "no-ball" ? "NB" :
-      ball.extra_type === "bye" ? "B" : ball.extra_type === "leg-bye" ? "LB" :
-      (Number(ball.total_runs) === 0 ? "·" : String(ball.total_runs));
+    const label = deliveryNotation(ball);
     const cls = ball.wicket ? "wicket" : ball.extra_type ? "extra" : ([4,6].includes(Number(ball.runs_off_bat)) ? "boundary" : "");
     return '<span class="over-ball ' + cls + '">' + label + "</span>";
   }).join("");
@@ -1116,8 +1115,8 @@ function renderScorecard() {
 }
 function ballOutcome(ball) {
   if (ball.wicket) return "WICKET · " + ball.wicket.toUpperCase();
-  if (ball.extra_type === "wide") return "WIDE +" + ball.total_runs;
-  if (ball.extra_type === "no-ball") return "NO BALL +" + ball.total_runs;
+  if (ball.extra_type === "wide") return "WIDE " + deliveryNotation(ball);
+  if (ball.extra_type === "no-ball") return "NO BALL " + deliveryNotation(ball);
   if (ball.extra_type === "bye") return ball.extra_runs + " BYE";
   if (ball.extra_type === "leg-bye") return ball.extra_runs + " LEG-BYE";
   if (ball.runs_off_bat === 4 && ball.is_boundary) return "FOUR";
