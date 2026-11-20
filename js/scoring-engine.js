@@ -21,6 +21,29 @@ function orderedBalls(balls) {
     String(a.created_at || "").localeCompare(String(b.created_at || ""))
   );
 }
+export function deliveryNotation(ball) {
+  if (!ball) return "";
+  if (ball.wicket) return "W";
+  if (ball.extra_type === "wide" || ball.extra_type === "no-ball") {
+    const penalty = 1;
+    let additional;
+    if (ball.extra_type === "wide") {
+      additional = ball.extra_runs != null
+        ? Math.max(0, num(ball.extra_runs) - penalty)
+        : Math.max(0, num(ball.total_runs) - penalty);
+    } else {
+      additional = ball.extra_runs != null
+        ? num(ball.runs_off_bat) + Math.max(0, num(ball.extra_runs) - penalty)
+        : Math.max(0, num(ball.total_runs) - penalty);
+    }
+    return (ball.extra_type === "wide" ? "WD" : "NB") + (additional > 0 ? "+" + additional : "");
+  }
+  if (ball.extra_type === "bye") return "B" + (num(ball.extra_runs) ? "+" + num(ball.extra_runs) : "");
+  if (ball.extra_type === "leg-bye") return "LB" + (num(ball.extra_runs) ? "+" + num(ball.extra_runs) : "");
+  if (num(ball.runs_off_bat) === 4 && ball.is_boundary) return "4";
+  if (num(ball.runs_off_bat) === 6 && ball.is_boundary) return "6";
+  return num(ball.total_runs) === 0 ? "·" : String(num(ball.total_runs));
+}
 export function inningsStats(balls, inningsNo, oversLimit = 0) {
   const rows = activeInningsBalls(balls, inningsNo);
   const total = rows.reduce((sum, b) => sum + num(b.total_runs), 0);
@@ -100,7 +123,7 @@ export function buildDelivery(input) {
   if (!striker || !nonStriker || !bowler) errors.push("Select the striker, non-striker and current bowler.");
   if (striker && nonStriker && striker === nonStriker) errors.push("Striker and non-striker must be different players.");
   if (![0,1,2,3,4,5,6].includes(bat)) errors.push("Runs off bat must be between 0 and 6.");
-  if (!Number.isInteger(extras) || extras < 0 || extras > 5) errors.push("Additional runs must be between 0 and 5.");
+  if (!Number.isInteger(extras) || extras < 0 || extras > 6) errors.push("Additional runs must be between 0 and 6.");
   if (extraType && !EXTRAS.has(extraType)) errors.push("Select a valid extra type.");
   if (wicket && !WICKETS.has(wicket)) errors.push("Select a supported dismissal type.");
   if (extraType === "wide" && bat !== 0) errors.push("A wide cannot be recorded as runs off the bat.");
