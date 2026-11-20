@@ -112,12 +112,28 @@
     <label>Team 2 playing squad<textarea id="players2" rows="2" placeholder="Karthik, Mani, Ravi…"></textarea></label>
     <datalist id="teamNamesList"></datalist>
     <div class="form-grid"><label>Scheduled date/time<input id="scheduledAt" type="datetime-local"></label><label>Players per side<input id="playersPerTeam" type="number" min="2" max="15" value="11"></label></div>
-    <div class="form-section-title">Toss</div>
-    <div class="form-grid">
-      <label>Toss winner<select id="tossWinner"><option value="">Select team</option><option value="team1">Team 1</option><option value="team2">Team 2</option></select></label>
-      <label>Decision<select id="tossDecision"><option value="">Select decision</option><option value="bat">Bat first</option><option value="bowl">Bowl first</option></select></label>
+    <div class="form-section-title">Coin toss</div>
+    <div class="toss-card">
+      <div class="toss-card-top">
+        <div>
+          <span class="eyebrow">TEAM 1 CALLS</span>
+          <h2>Heads or tails?</h2>
+          <p class="muted">Team 1 chooses one side. The coin decides which team wins the toss.</p>
+        </div>
+        <div id="coinFace" class="coin-face" aria-live="polite">?</div>
+      </div>
+      <div class="toss-call-buttons">
+        <button id="tossCallHeads" type="button" class="toss-call">HEADS</button>
+        <button id="tossCallTails" type="button" class="toss-call">TAILS</button>
+      </div>
+      <div id="tossStatus" class="toss-status">Team 1: choose heads or tails.</div>
+      <button id="flipCoinBtn" type="button" class="btn btn-primary btn-wide" disabled>Flip coin</button>
+      <div id="tossDecisionSummary" class="toss-decision-summary hidden">
+        <strong id="tossWinnerStatus"></strong>
+        <span id="tossDecisionResult"></span>
+      </div>
     </div>
-    <button id="createMatchBtn" class="btn btn-primary btn-wide">Create match & go to scorer</button><p id="setupError" class="form-error"></p>
+    <button id="createMatchBtn" class="btn btn-primary btn-wide" disabled>Create match & go to scorer</button><p id="setupError" class="form-error"></p>
   </section>
 
   <section id="scoreView" class="view hidden">
@@ -152,7 +168,7 @@
           <label><span>Non-striker</span><select id="nonStriker"><option value="">Select non-striker</option></select></label>
           <label><span>Bowler</span><select id="bowler"><option value="">Select bowler</option></select></label>
         </div>
-        <div class="crease-footer"><span id="lineupHint">Choose the opening batters and bowler.</span><button id="confirmLineupBtn" class="text-action">Confirm players</button></div>
+        <div class="crease-footer"><span id="lineupHint">Choose the opening batters and bowler.</span><button id="confirmLineupBtn" type="button" class="btn btn-secondary confirm-lineup-btn">Confirm players</button></div>
       </div>
 
       <div class="quick-score-card">
@@ -237,6 +253,19 @@
   </div>
 </div>
 
+<div id="tossDecisionSheet" class="sheet-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="tossDecisionTitle">
+  <div class="bottom-sheet toss-decision-sheet">
+    <div class="sheet-grabber"></div>
+    <div class="eyebrow">TOSS RESULT</div>
+    <div id="coinResultLarge" class="coin-result-large">🪙</div>
+    <h2 id="tossDecisionTitle">Toss won!</h2>
+    <p class="muted"><strong id="tossWinnerName"></strong>, what would you like to do?</p>
+    <div class="toss-choice-buttons">
+      <button id="chooseBatFirstBtn" class="btn btn-primary"><span>🏏</span> Bat first</button>
+      <button id="chooseBowlFirstBtn" class="btn btn-secondary"><span>🎯</span> Bowl first</button>
+    </div>
+  </div>
+</div>
 <div id="milestoneOverlay" class="milestone hidden" role="dialog" aria-live="assertive">
   <div class="milestone-card"><div class="milestone-icon">🏏</div><div id="milestoneKicker" class="eyebrow">MILESTONE</div><div id="milestoneTitle" class="milestone-title">FIFTY!</div><div id="milestoneDetail" class="muted"></div><button id="milestoneClose" class="btn btn-primary">Continue</button></div>
 </div>
