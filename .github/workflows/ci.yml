@@ -22,3 +22,9 @@ jobs:
           node --check js/scoring-engine.js
       - name: Run cricket scoring regression tests
         run: npm test
+      - name: Check tournament deletion Edge Function types
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check Edge Function
+        run: deno check supabase/functions/delete-tournament/index.ts
