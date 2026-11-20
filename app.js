@@ -323,6 +323,82 @@ async function confirmJoin() {
     toast("You're on the tournament list");
   } catch (error) { $("joinError").textContent = error.message; }
 }
+function openDeleteTournamentSheet() {
+  if (!state.tournament) return;
+  $("deleteTournamentName").textContent = state.tournament.name;
+  $("deleteTournamentNameConfirm").value = "";
+  $("deleteTournamentPassword").value = "";
+  $("deleteTournamentError").textContent = "";
+  $("confirmDeleteTournamentBtn").disabled = false;
+  $("confirmDeleteTournamentBtn").textContent = "Delete permanently";
+  $("deleteTournamentSheet").classList.remove("hidden");
+  document.body.classList.add("sheet-open");
+}
+function closeDeleteTournamentSheet() {
+  $("deleteTournamentSheet").classList.add("hidden");
+  document.body.classList.remove("sheet-open");
+}
+async function deleteTournamentPermanently() {
+  if (!state.tournament) return;
+  const tournament = state.tournament;
+  const typedName = $("deleteTournamentNameConfirm").value.trim();
+  const password = $("deleteTournamentPassword").value;
+  $("deleteTournamentError").textContent = "";
+
+  if (typedName !== tournament.name) {
+    $("deleteTournamentError").textContent = "The tournament name does not match. Enter it exactly as shown.";
+    return;
+  }
+  if (!password) {
+    $("deleteTournamentError").textContent = "Enter the admin password.";
+    return;
+  }
+
+  const button = $("confirmDeleteTournamentBtn");
+  button.disabled = true;
+  button.textContent = "Deleting…";
+  try {
+    const response = await fetch(cfg.SUPABASE_URL + "/functions/v1/delete-tournament", {
+      method: "POST",
+      headers: {
+        apikey: cfg.SUPABASE_ANON_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        tournamentId: tournament.id,
+        expectedName: tournament.name,
+        password
+      })
+    });
+    const raw = await response.text();
+    let result = {};
+    try { result = raw ? JSON.parse(raw) : {}; } catch (_) {}
+    if (!response.ok) {
+      const detail = result.error || result.message || raw || ("HTTP " + response.status);
+      if (response.status === 404 || response.status === 401 || /function.*not found|requested function/i.test(String(detail))) {
+        throw new Error(String(detail) + " — check that the delete-tournament Edge Function is deployed and configured.");
+      }
+      throw new Error(String(detail));
+    }
+    closeDeleteTournamentSheet();
+    stopPolling();
+    state.tournament = null;
+    state.match = null;
+    state.innings = [];
+    state.players = [];
+    state.balls = [];
+    state.members = [];
+    state.teams = [];
+    state.teamPlayers = {};
+    await withLoader("Returning to the GroundScore home…", loadHome);
+    toast("Tournament and its match data deleted");
+  } catch (error) {
+    $("deleteTournamentError").textContent = error.message;
+    button.disabled = false;
+    button.textContent = "Delete permanently";
+  }
+}
+
 async function openTournament(tournamentId) {
   state.tournament = (await api("tournaments?id=eq." + tournamentId + "&select=*"))[0];
   if (!state.tournament) throw new Error("Tournament not found.");
@@ -1312,6 +1388,13 @@ function attachEvents() {
   bind("tournamentJoinBtn","click",() => withLoader("Opening player check-in…", () => openJoin(state.tournament.id)).catch(showError));
   bind("tournamentNewMatchBtn","click",() => withLoader("Preparing match setup…", startMatchSetup).catch(showError));
   bind("refreshTournamentBtn","click",() => withLoader("Refreshing fixtures…", refreshTournament).catch(showError));
+  bind("openDeleteTournamentBtn","click",openDeleteTournamentSheet);
+  bind("closeDeleteTournamentBtn","click",closeDeleteTournamentSheet);
+  bind("cancelDeleteTournamentBtn","click",closeDeleteTournamentSheet);
+  bind("confirmDeleteTournamentBtn","click",deleteTournamentPermanently);
+  bind("deleteTournamentSheet","click",event => {
+    if (event.target.id === "deleteTournamentSheet") closeDeleteTournamentSheet();
+  });
   bind("addTeamBtn","click",() => withLoader("Saving team and squad…", createTeam).catch(showError));
   bind("matchSetupBackBtn","click",() => withLoader("Returning to tournament…", backToTournament).catch(showError));
   bind("createMatchBtn","click",() => withLoader("Setting up the match…", createMatch).catch(showError));
