@@ -59,9 +59,17 @@ export function currentBattingState(balls, inningsNo, opening = {}) {
   const previousOverBowlerId = needsNewBowler
     ? (lastLegal && num(lastLegal.ball_number) === 6 ? lastLegal.bowler_id : "")
     : "";
+  // A wicket with no incoming batter must leave that end empty rather than
+  // falling back to the dismissed batter from the delivery record.
+  const strikerId = last.wicket
+    ? (last.next_striker_id || "")
+    : (last.next_striker_id || last.striker_id || "");
+  const nonStrikerId = last.wicket
+    ? (last.next_non_striker_id || "")
+    : (last.next_non_striker_id || last.non_striker_id || "");
   return {
-    strikerId: last.next_striker_id || last.striker_id || "",
-    nonStrikerId: last.next_non_striker_id || last.non_striker_id || "",
+    strikerId,
+    nonStrikerId,
     bowlerId: needsNewBowler ? "" : (last.bowler_id || ""),
     legalBalls,
     ballNumber: (legalBalls % 6) + 1,
