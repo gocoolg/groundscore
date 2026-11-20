@@ -273,3 +273,51 @@ footer{text-align:center;color:#8a9895;font-size:10px;padding:20px 10px 28px}
  .score-players strong{max-width:70px}
  .run-key{min-height:48px}
 }
+
+
+/* Toss flow and scorer transition feedback */
+.btn:disabled,.toss-call:disabled{opacity:.48;cursor:not-allowed;filter:saturate(.55)}
+.confirm-lineup-btn{
+  min-height:34px;padding:7px 12px;border:1px solid #b9ddd4;border-radius:9px;
+  background:#e7f6f1;color:#08786f;font-size:10px;font-weight:950;
+  box-shadow:0 2px 6px #08786f12;white-space:nowrap
+}
+.confirm-lineup-btn.confirmed{background:#e1f2eb;color:#08745f;border-color:#c5e4d8}
+.confirm-lineup-btn.needs-attention{background:#fff1cf;color:#87560a;border-color:#efc45d;box-shadow:0 0 0 3px #f0c65c35}
+.needs-attention{border-color:#d7a32b!important;box-shadow:0 0 0 3px #edc45b48!important;background-color:#fffaf0!important}
+.crease-selects select.needs-attention{font-weight:900}
+body.sheet-open{overflow:hidden}
+.toss-card{border:1px solid #d7e7e2;border-radius:14px;padding:15px;background:linear-gradient(145deg,#fff,#f0f8f5);margin:13px 0 15px}
+.toss-card-top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.toss-card-top h2{margin:0;font-size:16px}
+.toss-card-top p{font-size:11px;margin:6px 0 0;max-width:390px}
+.coin-face{width:54px;height:54px;flex:0 0 54px;border-radius:50%;display:grid;place-items:center;
+  background:radial-gradient(circle at 30% 25%,#fff5c9,#edc15f 58%,#b87b22);
+  color:#68420c;font-size:22px;font-weight:1000;border:3px solid #d8a849;
+  box-shadow:inset 0 0 0 3px #fff4c5,0 5px 12px #7d581d27}
+.coin-face.flipping{animation:coinFlip .8s ease-in-out}
+.toss-call-buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:13px}
+.toss-call{min-height:42px;border:1px solid #cbded8;border-radius:10px;background:#fff;color:#45625b;font-size:11px;font-weight:950;letter-spacing:1px}
+.toss-call.selected{background:#0a776e;color:#fff;border-color:#0a776e;box-shadow:0 3px 10px #0a776e2a}
+.toss-status{font-size:11px;font-weight:800;color:#496661;margin-top:12px;min-height:16px}
+.toss-decision-summary{display:grid;gap:4px;border-top:1px solid #dce9e4;margin-top:12px;padding-top:11px;font-size:11px;color:#0c665d}
+.toss-decision-summary span{color:#71827d;font-size:10px}
+.toss-decision-sheet{text-align:center;padding-top:20px}
+.coin-result-large{width:76px;height:76px;margin:4px auto 16px;border-radius:50%;display:grid;place-items:center;
+  background:radial-gradient(circle at 30% 25%,#fff8d6,#e9b94e 62%,#b67921);
+  color:#68420c;font-size:17px;font-weight:1000;letter-spacing:.5px;border:4px solid #dbad4a;
+  box-shadow:inset 0 0 0 4px #fff1be,0 8px 18px #8e651c2a}
+.toss-choice-buttons{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:17px}
+.toss-choice-buttons .btn{min-height:49px}
+@keyframes coinFlip{
+  0%{transform:rotateY(0) scale(1)}
+  35%{transform:rotateY(540deg) scale(1.14)}
+  70%{transform:rotateY(1080deg) scale(.97)}
+  100%{transform:rotateY(1440deg) scale(1)}
+}
+@media(max-width:650px){
+  .confirm-lineup-btn{min-height:33px;padding:6px 9px;font-size:9px}
+  .toss-card{padding:12px}
+  .coin-face{width:48px;height:48px;flex-basis:48px}
+  .toss-choice-buttons{grid-template-columns:1fr 1fr}
+}
