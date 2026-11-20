@@ -1,0 +1,4 @@
+project_id = "shyrcxrgccxtlsztebkb"
+
+[functions.delete-tournament]
+verify_jwt = false
