@@ -113,6 +113,7 @@ function showView(id) {
 }
 async function withLoader(message, action) {
   const outermost = state.loaderDepth === 0;
+  if (outermost) clearTimeout(state.loaderTimer);
   state.loaderDepth += 1;
   if (outermost) {
     state.loaderStartedAt = Date.now();
@@ -238,10 +239,10 @@ function renderTournamentCards(container, tournaments, joinMode) {
       '<button class="btn btn-quiet" data-view="' + t.id + '">Open</button>') + "</div></article>";
   }).join("");
   container.querySelectorAll("[data-view]").forEach(button =>
-    button.addEventListener("click", () => openTournament(button.dataset.view).catch(showError))
+    button.addEventListener("click", () => withLoader("Opening tournament…", () => openTournament(button.dataset.view)).catch(showError))
   );
   container.querySelectorAll("[data-join]").forEach(button =>
-    button.addEventListener("click", () => openJoin(button.dataset.join).catch(showError))
+    button.addEventListener("click", () => withLoader("Opening player check-in…", () => openJoin(button.dataset.join)).catch(showError))
   );
 }
 async function listTournaments() {
@@ -365,7 +366,7 @@ function renderFixtures(matches) {
       match.id + '">' + (live ? "Follow live" : "Scorecard") + "</button></div></article>";
   }).join("");
   target.querySelectorAll("[data-match]").forEach(button =>
-    button.addEventListener("click", () => loadMatch(button.dataset.match).catch(showError))
+    button.addEventListener("click", () => withLoader("Opening live scorecard…", () => loadMatch(button.dataset.match)).catch(showError))
   );
 }
 function renderTeams() {
