@@ -105,6 +105,10 @@ export function buildDelivery(input) {
   if (striker && dismissedBefore.has(striker)) errors.push("The selected striker has already been dismissed.");
   if (nonStriker && dismissedBefore.has(nonStriker)) errors.push("The selected non-striker has already been dismissed.");
   const battingPlayers = players.filter(p => p.team === input.battingTeam);
+  const bowlingPlayers = players.filter(p => p.team === input.bowlingTeam);
+  if (striker && !battingPlayers.some(p => p.id === striker)) errors.push("Striker must belong to the batting team.");
+  if (nonStriker && !battingPlayers.some(p => p.id === nonStriker)) errors.push("Non-striker must belong to the batting team.");
+  if (bowler && input.bowlingTeam && !bowlingPlayers.some(p => p.id === bowler)) errors.push("Bowler must belong to the bowling team.");
   const availableIncoming = battingPlayers.filter(p =>
     !dismissedBefore.has(p.id) && p.id !== striker && p.id !== nonStriker
   );
@@ -172,9 +176,9 @@ export function battingScorecard(balls, players, inningsNo) {
   return players.map(player => {
     const faced = active.filter(b => b.striker_id === player.id);
     const runs = faced.reduce((sum, b) => sum + num(b.runs_off_bat), 0);
-    const ballsFaced = faced.filter(b => !["wide", "bye", "leg-bye"].includes(b.extra_type)).length;
-    const fours = faced.filter(b => b.is_boundary ? num(b.runs_off_bat) === 4 : num(b.runs_off_bat) === 4).length;
-    const sixes = faced.filter(b => num(b.runs_off_bat) === 6).length;
+    const ballsFaced = faced.filter(b => b.extra_type !== "wide").length;
+    const fours = faced.filter(b => b.is_boundary && num(b.runs_off_bat) === 4).length;
+    const sixes = faced.filter(b => b.is_boundary && num(b.runs_off_bat) === 6).length;
     const dismissal = active.find(b => b.wicket && b.dismissed_batsman_id === player.id);
     return {
       id: player.id, name: player.name, runs, balls: ballsFaced, fours, sixes,
