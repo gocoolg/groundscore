@@ -268,6 +268,20 @@ export function fallOfWickets(balls, inningsNo, players) {
   });
   return result;
 }
+export function chaseProgress(balls, firstInningsNo, secondInningsNo, oversLimit) {
+  const first = inningsStats(balls, firstInningsNo, oversLimit);
+  const second = inningsStats(balls, secondInningsNo, oversLimit);
+  const target = first.total + 1;
+  const ballsRemaining = Math.max(0, Number(oversLimit) * 6 - second.legalBalls);
+  const runsRequired = Math.max(0, target - second.total);
+  return {
+    target,
+    runsRequired,
+    ballsRemaining,
+    oversRemaining: formatOvers(ballsRemaining),
+    reached: second.total >= target
+  };
+}
 export function matchResult(innings, balls, players, match) {
   const scores = innings.map(i => ({ innings: i, ...inningsStats(balls, i.innings_no, match.overs) }));
   if (scores.length < 2) return { text: "Match in progress", winner: null, type: "in_progress" };
