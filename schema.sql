@@ -61,6 +61,10 @@ alter table public.matches add column if not exists round_name text;
 alter table public.matches add column if not exists players_per_team integer not null default 11;
 alter table public.matches add column if not exists venue text;
 alter table public.matches add column if not exists updated_at timestamptz not null default now();
+alter table public.matches add column if not exists toss_call text check (toss_call in ('heads','tails'));
+alter table public.matches add column if not exists toss_result text check (toss_result in ('heads','tails'));
+alter table public.matches add column if not exists toss_tossed_at timestamptz;
+
 
 create table if not exists public.players (
   id uuid primary key default gen_random_uuid(),
