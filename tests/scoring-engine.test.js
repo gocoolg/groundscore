@@ -123,3 +123,34 @@ test("batting balls faced count no-balls and byes/leg-byes, but exclude wides", 
   assert.equal(figures.balls, 4);
   assert.equal(figures.fours, 1);
 });
+
+test("selected new bowler is accepted after six legal balls", () => {
+  const previous = Array.from({ length: 6 }, (_, i) => ({
+    innings_no: 1, delivery_number: i + 1, ball_number: i + 1,
+    over_number: 0, striker_id: "a", non_striker_id: "b", bowler_id: "d",
+    extra_type: null, total_runs: 0, runs_off_bat: 0,
+    next_striker_id: "a", next_non_striker_id: "b"
+  }));
+  const next = currentBattingState(previous, 1, { strikerId: "a", nonStrikerId: "b", bowlerId: "e" });
+  assert.equal(next.needsNewBowler, true);
+  assert.equal(next.bowlerId, "e");
+  const built = buildDelivery({
+    matchId: "match-1", inningsNo: 1, balls: previous, players,
+    battingTeam: "team1", bowlingTeam: "team2", oversLimit: 10,
+    strikerId: "a", nonStrikerId: "b", bowlerId: "e", scorerName: "Scorer", batRuns: 1
+  });
+  assert.equal(built.ok, true, built.errors?.join("; "));
+  assert.equal(built.ball.bowler_id, "e");
+});
+test("wicket with no incoming batter does not put dismissed player back at the crease", () => {
+  const rows = [{
+    innings_no: 1, delivery_number: 1, ball_number: 1, over_number: 0,
+    striker_id: "a", non_striker_id: "b", bowler_id: "d",
+    extra_type: null, total_runs: 0, runs_off_bat: 0,
+    wicket: "bowled", dismissed_batsman_id: "a",
+    next_striker_id: null, next_non_striker_id: "b"
+  }];
+  const next = currentBattingState(rows, 1);
+  assert.equal(next.strikerId, "");
+  assert.equal(next.nonStrikerId, "b");
+});
