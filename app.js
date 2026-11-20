@@ -82,9 +82,9 @@ function fillPlayerSelects(inn,balls){
  const bowling=state.players.filter(p=>p.team===inn.bowling_team);
  const last=balls[balls.length-1];
  const oldStriker=$("striker").value,oldNon=$("nonStriker").value,oldBowler=$("bowler").value;
- const striker=last?(last.next_striker_id||""):(oldStriker||batting[0]?.id||"");
- const non=last?(last.next_non_striker_id||""):(oldNon||batting[1]?.id||"");
- const bowler=last?(last.bowler_id||""):(oldBowler||bowling[0]?.id||"");
+ const striker=last?(last.next_striker_id||""):oldStriker;
+ const non=last?(last.next_non_striker_id||""):oldNon;
+ const bowler=last?(last.bowler_id||""):oldBowler;
  setSelectOptions("striker",batting,striker,"Select striker");
  setSelectOptions("nonStriker",batting,non,"Select non-striker");
  setSelectOptions("bowler",bowling,bowler,"Select bowler");
