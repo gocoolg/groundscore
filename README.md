@@ -1,41 +1,51 @@
 # GroundScore
-A mobile-friendly cricket scoring and tournament app. Static HTML/CSS/JavaScript + Supabase Postgres. No login and no install required.
 
-## Features
-- Tournament-first home: create, browse, join and view public scorecards.
-- Member roster: select an existing display name or add a new one.
-- Toss, overs, team squads and opening striker/non-striker/bowler selection.
-- Ball-by-ball score entry with runs, wides, no-balls, byes, leg-byes, extra-run selector and wickets.
-- Strike rotates on odd completed runs; 2/4/6 do not rotate; ends change after six legal balls.
-- Undo last delivery with confirmation.
-- Public live score polling every 12 seconds, with a copyable direct match link.
-- Full-screen team and batter 50/100 milestone celebrations.
-- Match summary with result, batting figures, bowler wickets, run rates and notable moments.
+A mobile-first cricket tournament and scoring web app. Static HTML/CSS/JavaScript + Supabase Postgres. No app install or login required for spectators.
 
-## Supabase setup
-1. Create a Supabase project.
-2. Run the complete root `schema.sql` in SQL Editor. It upgrades the old GroundScore database by adding tournaments and new ball-state columns.
-3. Set the project URL and publishable key in `config.js`.
-4. Never put a service-role/secret key in browser code.
+## Current experience
+- Tournament home, create/join flow, member roster and saved teams/squads.
+- Tournament tabs for matches, teams, standings and members.
+- Match setup: overs, playing XI, toss, venue, scheduled time and fixture label.
+- Sticky live scoreboard with current batters, bowler, CRR, RRR and chase target.
+- Compact one-tap scoring keypad (0, 1, 2, 3, 4, 6).
+- Bottom sheets for wides, no-balls, byes, leg-byes and wickets.
+- Batter/bowler scorecards, extras, fall of wickets and ball-by-ball commentary.
+- Automatic strike rotation for odd completed runs, end change after six legal balls, next-over bowler selection.
+- Soft undo (voids the delivery rather than deleting it), milestone celebrations and direct share links.
+- Spectator polling every eight seconds while a match is open.
+
+## Supabase setup / migration
+1. Open Supabase Dashboard → SQL Editor.
+2. Run the complete root `schema.sql` from this repository. It is an additive migration: it preserves existing match data and adds saved teams, squads, delivery sequence, extras, soft-undo and match metadata columns.
+3. Keep the project URL and publishable key in `config.js`. Never place a service-role/secret key in frontend files.
 
 ## Local development
+Node is only needed for tests. To serve the static site:
 ```bash
 python3 -m http.server 8080
 ```
 Open http://localhost:8080.
 
+## Tests
+```bash
+npm test
+```
+GitHub Actions runs JavaScript syntax checks and the cricket scoring regression tests on pushes and pull requests.
+
 ## GitHub Pages
-Settings → Pages → Deploy from branch → `main` → `/(root)`. Share `https://<username>.github.io/groundscore/`. During a match, use Share score to copy a direct live-score link.
+Repository Settings → Pages → Deploy from branch → `main` → `/(root)`. Share `https://<username>.github.io/groundscore/`. Use **Share** from a live match to copy its direct spectator link.
 
-## Public access model
-There are no accounts by design. Anonymous visitors can read and write tournaments, members, matches and scores. This is convenient for a trusted recreational group but is not authenticated or tamper-proof: anyone who knows the Supabase project endpoint can potentially alter or delete data. Use authentication, server-side validation and audit logs for higher-trust events.
+## Cricket scoring conventions
+- Wides and no-balls do not count as legal balls; byes and leg-byes do.
+- One penalty run is added automatically for a wide/no-ball. The extra sheet has fields for bat runs and additional completed runs.
+- Strike rotation uses completed-run parity; the one-run wide/no-ball penalty itself does not rotate strike. Ends change at the end of six legal deliveries.
+- Batter balls-faced exclude wides but include no-balls, byes and leg-byes.
+- Bowler runs conceded exclude byes and leg-byes. Run-outs are not credited to the bowler.
+- A run-out records the dismissed batter, incoming batter, completed runs and crossing note. This is a recreational scorer, not a complete Laws-of-Cricket adjudicator; the scorer must enter the umpire's decision correctly.
+- The app does not yet implement penalty runs, retired hurt, timed out, free-hit enforcement, DLS, super overs, full fielder/catch attribution or automatic multi-innings formats.
 
-## Scoring assumptions and limitations
-- One automatic penalty run is added for a wide/no-ball; the Extra runs field represents additional extras on top of that penalty. Example: wide + 2 additional runs = 3 total extras.
-- Wides and no-balls are not legal deliveries; byes and leg-byes are legal.
-- Completed odd runs rotate strike; 2, 4 and 6 do not. At the end of six legal balls, ends change.
-- Run-outs are not credited to the bowler; bowled/caught/LBW/stumped/hit wicket are credited.
-- This is a recreational scorer, not a complete Laws-of-Cricket engine. Penalty runs, retired hurt, timed out, free-hit enforcement and detailed overthrow handling are not modelled.
+## Public access and security
+The current no-login mode deliberately lets the public anonymous role read/write tournament and scoring tables. This is convenient for a trusted recreational group but not tamper-proof: anyone with access to the Supabase project endpoint may potentially change or delete data. For formal competitions, introduce authenticated scorers, organizer permissions, restrictive RLS, server-side delivery RPC and an immutable correction audit trail.
 
 ## License
 MIT — see LICENSE.
