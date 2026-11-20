@@ -47,7 +47,7 @@ function showView(id) {
   ["homeView","tournamentCreateView","tournamentListView","joinView","tournamentView","matchSetupView","scoreView","summaryView"]
     .forEach(view => $(view)?.classList.toggle("hidden", view !== id));
   $("homeBtn").classList.toggle("hidden", id === "homeView");
-  window.scrollTo({ top: 0, behavior: "instant" });
+  window.scrollTo({ top: 0, behavior: "auto" });
 }
 function toast(message) {
   const el = $("toast");
@@ -376,8 +376,8 @@ async function createMatch() {
     const team2 = await findOrCreateTeam(team2Name);
     if (!squad1.length) squad1 = (await api("team_players?team_id=eq." + team1.id + "&select=*&order=name.asc")).map(p => p.name);
     if (!squad2.length) squad2 = (await api("team_players?team_id=eq." + team2.id + "&select=*&order=name.asc")).map(p => p.name);
-    if (squad1.length < 2 || squad2.length < 2 || squad1.length > 15 || squad2.length > 15) {
-      $("setupError").textContent = "Each playing squad needs 2–15 players. Enter names or choose teams with saved squads.";
+    if (squad1.length !== playersPerTeam || squad2.length !== playersPerTeam) {
+      $("setupError").textContent = "Both playing XIs must match the Players per side value (" + playersPerTeam + "). Edit the squads or change the player count.";
       return;
     }
     await ensureTeamSquad(team1.id, squad1);
@@ -612,8 +612,15 @@ function currentLineup() {
   };
 }
 function makeIdempotencyKey() {
-  if (!state.pendingKey) state.pendingKey = (crypto.randomUUID ? crypto.randomUUID() :
-    String(Date.now()) + "-" + Math.random().toString(16).slice(2));
+  if (!state.pendingKey) {
+    if (crypto.randomUUID) state.pendingKey = crypto.randomUUID();
+    else {
+      state.pendingKey = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, ch => {
+        const r = Math.floor(Math.random() * 16);
+        return (ch === "x" ? r : ((r & 3) | 8)).toString(16);
+      });
+    }
+  }
   return state.pendingKey;
 }
 async function submitDelivery(input) {
