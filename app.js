@@ -16,7 +16,8 @@ const state = {
   tournament: null, match: null, innings: [], balls: [], players: [], members: [],
   teams: [], teamPlayers: {}, poll: null, current: null, saving: false,
   selectedScoreTab: "scorer", selectedTournamentTab: "matches",
-  lineupConfirmed: false, milestones: new Set(), pendingKey: null
+  lineupConfirmed: false, pendingBatterReview: false, milestones: new Set(), pendingKey: null,
+  toss: null
 };
 
 function esc(value) {
@@ -352,7 +353,64 @@ async function startMatchSetup() {
   $("team1").value = ""; $("team2").value = "";
   $("players1").value = ""; $("players2").value = "";
   $("setupError").textContent = "";
+  resetTossUI();
   showView("matchSetupView");
+}
+function resetTossUI() {
+  state.toss = null;
+  $("tossCallHeads").classList.remove("selected");
+  $("tossCallTails").classList.remove("selected");
+  $("tossStatus").textContent = "Team 1: choose heads or tails.";
+  $("coinFace").textContent = "?";
+  $("coinFace").classList.remove("flipping");
+  $("tossWinnerStatus").textContent = "";
+  $("flipCoinBtn").disabled = true;
+  $("flipCoinBtn").classList.remove("hidden");
+  $("tossDecisionSummary").classList.add("hidden");
+  $("createMatchBtn").disabled = true;
+}
+function chooseTossCall(call) {
+  if (state.toss?.result) return;
+  state.toss = { call, result: null, winnerKey: null, decision: null, tossedAt: null };
+  $("tossCallHeads").classList.toggle("selected", call === "heads");
+  $("tossCallTails").classList.toggle("selected", call === "tails");
+  $("tossStatus").textContent = "Team 1 called " + call.toUpperCase() + ". Flip the coin.";
+  $("flipCoinBtn").disabled = false;
+}
+function flipCoin() {
+  if (!state.toss?.call || state.toss.result) return;
+  const bytes = new Uint8Array(1);
+  if (window.crypto?.getRandomValues) window.crypto.getRandomValues(bytes);
+  else bytes[0] = Math.floor(Math.random() * 256);
+  const result = (bytes[0] & 1) === 0 ? "heads" : "tails";
+  const winnerKey = result === state.toss.call ? "team1" : "team2";
+  state.toss.result = result;
+  state.toss.winnerKey = winnerKey;
+  state.toss.tossedAt = new Date().toISOString();
+  $("coinFace").classList.remove("flipping");
+  void $("coinFace").offsetWidth;
+  $("coinFace").classList.add("flipping");
+  $("coinFace").textContent = result === "heads" ? "H" : "T";
+  const winnerName = winnerKey === "team1" ? $("team1").value.trim() : $("team2").value.trim();
+  $("tossStatus").textContent = result.toUpperCase() + " — " + winnerName + " won the toss.";
+  $("tossWinnerStatus").textContent = winnerName + " won the toss. Choose to bat or bowl.";
+  $("flipCoinBtn").classList.add("hidden");
+  $("tossDecisionSummary").classList.remove("hidden");
+  $("tossWinnerName").textContent = winnerName;
+  $("tossDecisionSheet").classList.remove("hidden");
+  document.body.classList.add("sheet-open");
+}
+function chooseTossDecision(decision) {
+  if (!state.toss?.winnerKey || !state.toss?.result) return;
+  state.toss.decision = decision;
+  const winnerName = state.toss.winnerKey === "team1" ? $("team1").value.trim() : $("team2").value.trim();
+  $("tossStatus").textContent = "Toss complete: " + winnerName + " won and chose to " + decision + " first.";
+  $("tossWinnerStatus").textContent = winnerName + " won · " + state.toss.result.toUpperCase() + " · chose to " + decision.toUpperCase();
+  $("tossDecisionSummary").classList.remove("hidden");
+  $("tossDecisionResult").textContent = winnerName + " elected to " + decision + " first.";
+  $("createMatchBtn").disabled = false;
+  $("tossDecisionSheet").classList.add("hidden");
+  document.body.classList.remove("sheet-open");
 }
 async function createMatch() {
   const scorer = $("matchScorer").value;
@@ -362,13 +420,13 @@ async function createMatch() {
   let squad2 = parseNames($("players2").value);
   const overs = Number($("overs").value);
   const playersPerTeam = Number($("playersPerTeam").value);
-  const tossWinner = $("tossWinner").value;
-  const decision = $("tossDecision").value;
+  const tossWinner = state.toss?.winnerKey || "";
+  const decision = state.toss?.decision || "";
   $("setupError").textContent = "";
   if (!scorer || !team1Name || !team2Name || team1Name.toLowerCase() === team2Name.toLowerCase() ||
       overs < 1 || overs > 50 || playersPerTeam < 2 || playersPerTeam > 15 ||
       !tossWinner || !decision) {
-    $("setupError").textContent = "Choose the scorer, distinct teams, overs, players per side and toss details.";
+    $("setupError").textContent = "Choose the scorer, distinct teams, overs, players per side, complete the coin toss and choose bat or bowl.";
     return;
   }
   try {
@@ -395,6 +453,9 @@ async function createMatch() {
         overs, players_per_team: playersPerTeam,
         toss_winner: tossWinner === "team1" ? team1Name : team2Name,
         toss_decision: decision,
+        toss_call: state.toss.call,
+        toss_result: state.toss.result,
+        toss_tossed_at: state.toss.tossedAt,
         round_name: $("roundName").value.trim() || null,
         scheduled_at: scheduledValue ? new Date(scheduledValue).toISOString() : null,
         venue: state.tournament.venue || null,
@@ -420,6 +481,7 @@ async function createMatch() {
     });
     localStorage.setItem("groundscore_scorer", scorer);
     state.lineupConfirmed = false;
+    state.pendingBatterReview = false;
     state.selectedScoreTab = "scorer";
     await loadMatch(match.id);
     toast("Match ready. Confirm the opening players.");
@@ -521,9 +583,14 @@ function renderScore() {
   $("scoreTournamentName").textContent = state.tournament?.name || "No tournament";
   $("detailMatchTitle").textContent = state.match.team1 + " vs " + state.match.team2;
   $("scorecardInnings").textContent = teamName(innings.batting_team) + " · " + stats.total + "/" + stats.wickets;
+  const tossDetails = state.match.toss_call && state.match.toss_result
+    ? teamName(state.match.toss_winner === state.match.team1 ? "team1" : "team2") + " won · Team 1 called " +
+      state.match.toss_call.toUpperCase() + " · Coin landed " + state.match.toss_result.toUpperCase() +
+      " · Chose to " + state.match.toss_decision
+    : state.match.toss_winner + " won · chose to " + state.match.toss_decision;
   $("matchFacts").innerHTML = [
     ["Overs", state.match.overs], ["Players per side", state.match.players_per_team || state.players.filter(p => p.team === "team1").length],
-    ["Toss", state.match.toss_winner + " · chose to " + state.match.toss_decision],
+    ["Coin toss", tossDetails],
     ["Scorer", state.match.created_by], ["Venue", state.match.venue || state.tournament?.venue || "—"],
     ["Scheduled", state.match.scheduled_at ? new Date(state.match.scheduled_at).toLocaleString() : "—"]
   ].map(row => '<div class="row"><span>' + esc(row[0]) + '</span><strong>' + esc(row[1]) + "</strong></div>").join("");
@@ -539,6 +606,12 @@ function renderScore() {
     bowlerId: $("bowler").value || ""
   };
   const current = currentBattingState(state.balls, innings.innings_no, opening);
+  // At an over boundary the engine intentionally leaves bowlerId blank until a
+  // new bowler is selected. Resolve it from the actual dropdown selection.
+  if (current.needsNewBowler && opening.bowlerId &&
+      opening.bowlerId !== current.previousOverBowlerId) {
+    current.bowlerId = opening.bowlerId;
+  }
   state.current = current;
   fillSelect($("striker"), batting, current.strikerId || opening.strikerId, "Select striker");
   fillSelect($("nonStriker"), batting, current.nonStrikerId || opening.nonStrikerId, "Select non-striker");
@@ -559,15 +632,27 @@ function renderScore() {
   $("stickyNonStriker").textContent = playerName(current.nonStrikerId || $("nonStriker").value);
   $("stickyBowler").textContent = playerName(current.bowlerId || $("bowler").value);
   $("ballText").textContent = current.overNumber + "." + current.ballNumber + " · " + (current.needsNewBowler ? "New over — choose bowler" : "Next delivery");
+  const hasOpeningSelection = !!($("striker").value && $("nonStriker").value &&
+    $("striker").value !== $("nonStriker").value && $("bowler").value);
+  const needsBatterConfirm = state.pendingBatterReview;
   $("lineupHint").textContent = !scorer ? "Join this tournament to score. You are viewing as a spectator." :
-    (current.needsNewBowler && !current.bowlerId ? "Select the next bowler before scoring." :
-    (activeBalls(innings.innings_no).length === 0 ? "Select both opening batters and the opening bowler." : "Scoring as " + scorer));
-  $("confirmLineupBtn").textContent = state.lineupConfirmed ? "Players confirmed ✓" : "Confirm players";
+    (current.needsNewBowler && !current.bowlerId ? "OVER COMPLETE — select a different bowler to continue." :
+    (needsBatterConfirm ? "NEW BATTER — check the batting pair and confirm before the next ball." :
+    (activeBalls(innings.innings_no).length === 0 ? "Choose the opening pair and bowler, then confirm." :
+    (current.needsNewBowler ? "New bowler selected ✓" : "Scoring as " + scorer))));
+  $("confirmLineupBtn").textContent = state.lineupConfirmed ? "Players confirmed ✓" :
+    (needsBatterConfirm ? "Confirm new batters" : "Confirm players");
   $("confirmLineupBtn").classList.toggle("confirmed", state.lineupConfirmed);
-  document.querySelectorAll("[data-quick-run],#openExtrasBtn,#openWicketBtn").forEach(button => {
-    button.disabled = !canScore || !state.lineupConfirmed || !current.strikerId || !current.nonStrikerId || !current.bowlerId;
-  });
-  $("undoBtn").disabled = !scorer || !activeBalls(innings.innings_no).length;
+  $("confirmLineupBtn").classList.toggle("needs-attention", needsBatterConfirm || (!state.lineupConfirmed && hasOpeningSelection));
+  $("confirmLineupBtn").disabled = !scorer || !hasOpeningSelection || closed || state.saving;
+  $("bowler").classList.toggle("needs-attention", !!(current.needsNewBowler && !current.bowlerId));
+  $("striker").classList.toggle("needs-attention", needsBatterConfirm);
+  $("nonStriker").classList.toggle("needs-attention", needsBatterConfirm);
+  const canSubmit = canScore && state.lineupConfirmed && !needsBatterConfirm &&
+    !!current.strikerId && !!current.nonStrikerId && !!current.bowlerId && !state.saving;
+  document.querySelectorAll("[data-quick-run],#openExtrasBtn,#openWicketBtn,#saveExtrasBtn,#saveWicketBtn")
+    .forEach(button => { button.disabled = !canSubmit; });
+  $("undoBtn").disabled = !scorer || !activeBalls(innings.innings_no).length || state.saving;
   $("endInningsBtn").disabled = !scorer;
   $("endInningsBtn").textContent = target !== null && chaseDone ? "Finish chase →" : "End innings →";
   $("scoreError").textContent = closed ? (allOut ? "All out — end the innings." : oversDone ? "Over limit reached — end the innings." : "Target reached — finish the chase.") : "";
@@ -581,6 +666,7 @@ function confirmLineup() {
     return;
   }
   state.lineupConfirmed = true;
+  state.pendingBatterReview = false;
   toast("Players confirmed");
   renderScore();
 }
@@ -672,8 +758,16 @@ async function submitDelivery(input) {
     $("runOutRuns").value = "0";
     $("crossedBeforeWicket").checked = false;
     await loadMatch(state.match.id);
+    if (ball.wicket) {
+      // Require the scorer to acknowledge the replacement batter(s) before
+      // another delivery. This also provides a clear visual wicket transition.
+      state.lineupConfirmed = false;
+      state.pendingBatterReview = true;
+      setActiveScoreTab("scorer");
+      renderScore();
+    }
     checkMilestones(ball, before.total, previousBatterRuns);
-    toast(ball.wicket ? "Wicket recorded" : "Delivery saved");
+    toast(ball.wicket ? "Wicket recorded — confirm the new batting pair" : "Delivery saved");
   } catch (error) {
     $("scoreError").textContent = error.message;
     toast("Delivery not saved: " + error.message);
@@ -980,6 +1074,11 @@ function attachEvents() {
   bind("addTeamBtn","click",createTeam);
   bind("matchSetupBackBtn","click",backToTournament);
   bind("createMatchBtn","click",createMatch);
+  bind("tossCallHeads","click",() => chooseTossCall("heads"));
+  bind("tossCallTails","click",() => chooseTossCall("tails"));
+  bind("flipCoinBtn","click",flipCoin);
+  bind("chooseBatFirstBtn","click",() => chooseTossDecision("bat"));
+  bind("chooseBowlFirstBtn","click",() => chooseTossDecision("bowl"));
   bind("confirmLineupBtn","click",confirmLineup);
   bind("openExtrasBtn","click",openExtras);
   bind("openWicketBtn","click",openWicket);
@@ -995,13 +1094,15 @@ function attachEvents() {
   bind("homeBtn","click",() => loadHome().catch(showError));
   bind("brandHomeBtn","click",() => loadHome().catch(showError));
   bind("milestoneClose","click",() => $("milestoneOverlay").classList.add("hidden"));
+  bind("tossDecisionSheet","click",event => { if(event.target.id === "tossDecisionSheet") { /* winner must choose */ } });
+
   bind("extraKind","change",updateExtraHelp);
   bind("wicketType","change",() => $("runOutFields").classList.toggle("hidden", $("wicketType").value !== "run out"));
-  bind("team1","change",() => onTeamNameChange("team1","players1").catch(showError));
-  bind("team2","change",() => onTeamNameChange("team2","players2").catch(showError));
-  bind("striker","change",() => { if (state.match) { state.lineupConfirmed = false; renderScore(); } });
-  bind("nonStriker","change",() => { if (state.match) { state.lineupConfirmed = false; renderScore(); } });
-  bind("bowler","change",() => { if (state.match) { state.lineupConfirmed = false; renderScore(); } });
+  bind("team1","change",() => { resetTossUI(); onTeamNameChange("team1","players1").catch(showError); });
+  bind("team2","change",() => { resetTossUI(); onTeamNameChange("team2","players2").catch(showError); });
+  bind("striker","change",() => { if (state.match) { if (!activeBalls(state.match.current_innings).length) state.lineupConfirmed = false; renderScore(); } });
+  bind("nonStriker","change",() => { if (state.match) { if (!activeBalls(state.match.current_innings).length) state.lineupConfirmed = false; renderScore(); } });
+  bind("bowler","change",() => { if (state.match) { renderScore(); } });
   document.querySelectorAll("[data-home]").forEach(button => button.addEventListener("click", () => loadHome().catch(showError)));
   document.querySelectorAll("[data-score-tab]").forEach(button =>
     button.addEventListener("click", () => setActiveScoreTab(button.dataset.scoreTab))
