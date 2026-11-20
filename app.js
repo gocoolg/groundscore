@@ -25,14 +25,125 @@ async function refreshTournament(){const tid=state.tournament.id;const [matches,
 async function startMatchSetup(){const ms=await api(`tournament_members?tournament_id=eq.${state.tournament.id}&select=*&order=name.asc`);state.members=ms;$("matchScorer").innerHTML='<option value="">Select scorer</option>'+ms.map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join("");const saved=localScorer()||localStorage.getItem("groundscore_member");if(saved)$("matchScorer").value=saved;$("setupError").textContent="";show("matchSetupView")}
 async function createMatch(){const scorer=$("matchScorer").value,team1=$("team1").value.trim(),team2=$("team2").value.trim(),p1=parsePlayers($("players1").value),p2=parsePlayers($("players2").value),overs=Number($("overs").value),tw=$("tossWinner").value,td=$("tossDecision").value;if(!scorer||!team1||!team2||team1.toLowerCase()===team2.toLowerCase()||overs<1||overs>50||!tw||!td||p1.length<2||p2.length<2){$("setupError").textContent="Choose scorer, distinct teams, 1–50 overs, toss details and at least two players per side.";return}try{await api(`tournaments?id=eq.${state.tournament.id}`,{method:"PATCH",body:JSON.stringify({status:"live"})});const firstBat=td==="bat"?tw:tw==="team1"?"team2":"team1",firstBowl=firstBat==="team1"?"team2":"team1";const m=(await api("matches",{method:"POST",body:JSON.stringify({tournament_id:state.tournament.id,team1,team2,overs,toss_winner:tw==="team1"?team1:team2,toss_decision:td,status:"live",current_innings:1,created_by:scorer})}))[0];const players=[...p1.map(name=>({match_id:m.id,tournament_id:state.tournament.id,team:"team1",name})),...p2.map(name=>({match_id:m.id,tournament_id:state.tournament.id,team:"team2",name}))];await api("players",{method:"POST",body:JSON.stringify(players)});await api("innings",{method:"POST",body:JSON.stringify({match_id:m.id,innings_no:1,batting_team:firstBat,bowling_team:firstBowl,status:"live"})});localStorage.setItem("groundscore_scorer",scorer);await loadMatch(m.id)}catch(e){$("setupError").textContent=e.message}}
 async function loadMatch(id){stopPolling();state.match=(await api(`matches?id=eq.${id}&select=*`))[0];if(!state.match)throw Error("Match not found");if(state.match.tournament_id)state.tournament=(await api(`tournaments?id=eq.${state.match.tournament_id}&select=*`))[0];const [innings,players,balls]=await Promise.all([api(`innings?match_id=eq.${id}&select=*&order=innings_no.asc`),api(`players?match_id=eq.${id}&select=*&order=name.asc`),api(`balls?match_id=eq.${id}&select=*&order=created_at.asc`)]);state.innings=innings;state.players=players;state.balls=balls;if(state.match.status==="finished"){renderSummary();return}renderScore();state.poll=setInterval(()=>loadMatchData(id).catch(()=>{}),12000)}
-async function loadMatchData(id){const [m,balls]=await Promise.all([api(`matches?id=eq.${id}&select=*`),api(`balls?match_id=eq.${id}&select=*&order=created_at.asc`)]);if(!m[0])return;const old=state.balls.length;state.match=m[0];state.balls=balls;renderScore();if(balls.length>old)checkMilestones(balls.slice(old))}
+async function loadMatchData(id){
+ const [m,innings,balls]=await Promise.all([
+  api("matches?id=eq."+id+"&select=*"),
+  api("innings?match_id=eq."+id+"&select=*&order=innings_no.asc"),
+  api("balls?match_id=eq."+id+"&select=*&order=created_at.asc")
+ ]);
+ if(!m[0])return;
+ const oldInningsNo=state.match.current_innings;
+ const oldBalls=state.balls;
+ const oldIds=new Set(oldBalls.map(b=>b.id));
+ const oldThisInnings=oldBalls.filter(b=>b.innings_no===oldInningsNo);
+ const oldTeamTotal=oldThisInnings.reduce((sum,b)=>sum+Number(b.total_runs),0);
+ const oldPlayerTotals={};
+ oldThisInnings.forEach(b=>{oldPlayerTotals[b.striker_id]=(oldPlayerTotals[b.striker_id]||0)+Number(b.runs_off_bat)});
+ const newBalls=balls.filter(b=>!oldIds.has(b.id));
+ state.match=m[0];state.innings=innings;state.balls=balls;
+ if(state.match.status==="finished"){stopPolling();renderSummary();return}
+ renderScore();
+ if(newBalls.length){
+  const last=newBalls[newBalls.length-1], pid=last.striker_id;
+  checkMilestones(newBalls,oldTeamTotal,oldPlayerTotals[pid]||0,pid);
+ }
+}
 function stopPolling(){if(state.poll)clearInterval(state.poll);state.poll=null}
 function stats(inn){const balls=state.balls.filter(b=>b.innings_no===inn.innings_no),total=balls.reduce((s,b)=>s+Number(b.total_runs),0),wk=balls.filter(b=>b.wicket).length,legalBalls=balls.filter(legal).length;return{balls,total,wk,legalBalls,overs:overText(legalBalls),rr:legalBalls?(total/(legalBalls/6)).toFixed(2):"0.00"}}
-function renderScore(){show("scoreView");const inn=currentInnings();if(!inn)return;const s=stats(inn),first=state.innings.find(i=>i.innings_no===1),target=state.match.current_innings===2&&first?stats(first).total+1:null;$("matchTitle").textContent=`${state.match.team1} vs ${state.match.team2}`;$("tossText").textContent=`Toss: ${state.match.toss_winner} won and chose to ${state.match.toss_decision}`;$("scoreTournamentName").textContent=state.tournament?.name||"";$("matchStatus").textContent=`Innings ${state.match.current_innings}`;$("inningsLabel").textContent=`${teamName(inn.batting_team)} batting`;$("scoreText").textContent=`${s.total}/${s.wk}`;$("oversText").textContent=`${s.overs} overs`;$("runRate").textContent=s.rr;$("targetText").textContent=target?`Target ${target} · Need ${Math.max(0,target-s.total)} from ${Math.max(0,state.match.overs*6-s.legalBalls)} balls`:"";$("ballText").textContent=`Legal ball ${s.legalBalls+1}`;$("activeScorer").textContent=localScorer()||"Viewer";fillPlayerSelects(inn,s.balls);renderBalls(s.balls)}
-function fillPlayerSelects(inn,balls){const batting=state.players.filter(p=>p.team===inn.batting_team),bowling=state.players.filter(p=>p.team===inn.bowling_team),last=balls[balls.length-1];const prev={striker:last?.next_striker_id||last?.striker_id,non:last?.next_non_striker_id||last?.non_striker_id,bowler:last?.bowler_id};for(const [id,list,val] of [["striker",batting,prev.striker],["nonStriker",batting,prev.non],["bowler",bowling,prev.bowler],["dismissedBatsman",batting,null],["newBatter",batting,null]]){const el=$(id),old=el.value;el.innerHTML=list.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");const wanted=val||old;if(wanted&&list.some(p=>p.id===wanted))el.value=wanted}if(!balls.length){$("striker").value=batting[0]?.id||"";$("nonStriker").value=batting[1]?.id||""}$("dismissedWrap").classList.toggle("hidden",!$("wicket").value);$("newBatterWrap").classList.toggle("hidden",!$("wicket").value)}
+function renderScore(){
+ show("scoreView");
+ const inn=currentInnings();if(!inn)return;
+ const s=stats(inn),first=state.innings.find(i=>i.innings_no===1);
+ const target=state.match.current_innings===2&&first?stats(first).total+1:null;
+ const battingCount=state.players.filter(p=>p.team===inn.batting_team).length;
+ const allOut=s.wk>=Math.max(1,battingCount-1);
+ const oversDone=s.legalBalls>=state.match.overs*6;
+ const chaseDone=target!==null&&s.total>=target;
+ const closed=allOut||oversDone||chaseDone;
+ $("matchTitle").textContent=state.match.team1+" vs "+state.match.team2;
+ $("tossText").textContent="Toss: "+state.match.toss_winner+" won and chose to "+state.match.toss_decision;
+ $("scoreTournamentName").textContent=state.tournament?.name||"";
+ $("matchStatus").textContent="Innings "+state.match.current_innings;
+ $("inningsLabel").textContent=teamName(inn.batting_team)+" batting";
+ $("scoreText").textContent=s.total+"/"+s.wk;
+ $("oversText").textContent=s.overs+" overs";
+ $("runRate").textContent=s.rr;
+ $("targetText").textContent=target?"Target "+target+" · Need "+Math.max(0,target-s.total)+" from "+Math.max(0,state.match.overs*6-s.legalBalls)+" balls":"";
+ $("ballText").textContent="Legal ball "+(s.legalBalls+1);
+ $("activeScorer").textContent=localScorer()||"Viewer";
+ fillPlayerSelects(inn,s.balls);renderBalls(s.balls);
+ $("addBallBtn").disabled=closed;
+ $("addBallBtn").classList.toggle("disabled",closed);
+ $("scoreError").textContent=allOut?"All out. End the innings to continue.":oversDone?"Over limit reached. End the innings to continue.":chaseDone?"Target reached. End the innings to finish the chase.":"";
+}
+function setSelectOptions(id,players,selectedId,placeholder){
+ const el=$(id);el.innerHTML=(placeholder?'<option value="">'+esc(placeholder)+'</option>':'')+players.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join("");
+ if(selectedId&&players.some(p=>p.id===selectedId))el.value=selectedId;
+}
+function fillPlayerSelects(inn,balls){
+ const batting=state.players.filter(p=>p.team===inn.batting_team);
+ const bowling=state.players.filter(p=>p.team===inn.bowling_team);
+ const last=balls[balls.length-1];
+ const oldStriker=$("striker").value,oldNon=$("nonStriker").value,oldBowler=$("bowler").value;
+ const striker=last?(last.next_striker_id||""):(oldStriker||batting[0]?.id||"");
+ const non=last?(last.next_non_striker_id||""):(oldNon||batting[1]?.id||"");
+ const bowler=last?(last.bowler_id||""):(oldBowler||bowling[0]?.id||"");
+ setSelectOptions("striker",batting,striker,"Select striker");
+ setSelectOptions("nonStriker",batting,non,"Select non-striker");
+ setSelectOptions("bowler",bowling,bowler,"Select bowler");
+ const dismissedBefore=new Set(balls.filter(b=>b.wicket&&b.dismissed_batsman_id).map(b=>b.dismissed_batsman_id));
+ const active=[striker,non].filter(Boolean);
+ const activeBatters=batting.filter(p=>active.includes(p.id));
+ const dismissedSelect=$("dismissedBatsman");
+ const oldDismissed=dismissedSelect.value;
+ setSelectOptions("dismissedBatsman",activeBatters,oldDismissed||striker,"Choose dismissed batter");
+ const dismissedNow=$("dismissedBatsman").value;
+ const survivor=active.find(id=>id&&id!==dismissedNow);
+ const incoming=batting.filter(p=>!dismissedBefore.has(p.id)&&p.id!==dismissedNow&&p.id!==survivor);
+ setSelectOptions("newBatter",incoming,"","Choose incoming batter");
+ const showWicket=!!$("wicket").value;
+ $("dismissedWrap").classList.toggle("hidden",!showWicket);
+ $("newBatterWrap").classList.toggle("hidden",!showWicket);
+}
 function renderBalls(bs){$("ballsList").innerHTML=bs.length?[...bs].reverse().slice(0,18).map(b=>{const legalBefore=bs.slice(0,bs.indexOf(b)).filter(legal).length;const label=b.wicket?`WICKET · ${esc(b.wicket)}`:b.extra_type?esc(b.extra_type.toUpperCase()):b.runs_off_bat===4?"FOUR":b.runs_off_bat===6?"SIX":`${b.total_runs} run(s)`;return `<div class="ball"><strong>${Math.floor(legalBefore/6)}.${legalBefore%6+1}</strong><span>${esc(playerName(b.striker_id))} · ${label} · ${esc(playerName(b.bowler_id))}</span><span class="muted">${esc(b.scorer_name)}</span></div>`}).join(""):'<div class="empty">No deliveries yet. Select the opening players above.</div>'}
 function nextBatters(bs,ball){let striker=bs[0]?.striker_id,non=bs[0]?.non_striker_id;for(const b of bs){if(!striker){striker=b.striker_id;non=b.non_striker_id}if(b.wicket&&b.dismissed_batsman_id){if(b.dismissed_batsman_id===striker)striker=b.next_batter_id;else if(b.dismissed_batsman_id===non)non=b.next_batter_id}const runCount=Number(b.runs_off_bat)+(["bye","leg-bye"].includes(b.extra_type)?Number(b.extra_runs):0);if(runCount%2)[striker,non]=[non,striker];if(legal(b)&&Number(b.ball_number)===6)[striker,non]=[non,striker]}return{striker,non}}
-async function addBall(){const inn=currentInnings(),bs=state.balls.filter(b=>b.innings_no===inn.innings_no),scorer=localScorer(),striker=$("striker").value,non=$("nonStriker").value,bowler=$("bowler").value,wicket=$("wicket").value,extra=$("extraType").value,runs=Number($("runs").value),extras=Number($("extraRuns").value);$("scoreError").textContent="";if(!scorer||!striker||!non||!bowler||striker===non){$("scoreError").textContent="Choose a scorer, two different batters and a bowler.";return}if(wicket&&!$("dismissedBatsman").value){$("scoreError").textContent="Select the dismissed batter.";return}const legalBalls=bs.filter(legal).length,ballNo=legalBalls%6+1,overNo=Math.floor(legalBalls/6),penalty=["wide","no-ball"].includes(extra)?1:0,totalExtra=extras+penalty,dismissed=wicket?$("dismissedBatsman").value:null;let nextStriker=striker,nextNon=non;let incoming=null;if(wicket){incoming=$("newBatter").value;if(!incoming||incoming===dismissed){$("scoreError").textContent="Select a different incoming batter.";return}if(dismissed===nextStriker)nextStriker=incoming;else if(dismissed===nextNon)nextNon=incoming}const runningRuns=runs+(["bye","leg-bye"].includes(extra)?totalExtra:0);if(runningRuns%2)[nextStriker,nextNon]=[nextNon,nextStriker];if(!["wide","no-ball"].includes(extra)&&ballNo===6)[nextStriker,nextNon]=[nextNon,nextStriker];const payload={match_id:state.match.id,innings_no:inn.innings_no,over_number:overNo,ball_number:ballNo,striker_id:striker,non_striker_id:non,bowler_id:bowler,runs,runs_off_bat:runs,extra_type:extra||null,extra_runs:totalExtra,total_runs:runs+totalExtra,wicket:wicket||null,dismissed_batsman_id:dismissed,next_striker_id:nextStriker,next_non_striker_id:nextNon,next_batter_id:incoming,scorer_name:scorer};try{const oldTeam=stats(inn).total,oldPlayer=bs.filter(b=>b.striker_id===striker).reduce((s,b)=>s+b.runs_off_bat,0);await api("balls",{method:"POST",body:JSON.stringify(payload)});$("wicket").value="";$("runs").value="0";$("extraType").value="";$("extraRuns").value="0";await loadMatch(state.match.id);checkMilestones([payload],oldTeam,oldPlayer,striker)}catch(e){$("scoreError").textContent=e.message}}
+async function addBall(){
+ const inn=currentInnings(),bs=state.balls.filter(b=>b.innings_no===inn.innings_no);
+ const scorer=localScorer(),striker=$("striker").value,non=$("nonStriker").value,bowler=$("bowler").value;
+ const wicket=$("wicket").value,extra=$("extraType").value,runs=Number($("runs").value),extras=Number($("extraRuns").value);
+ $("scoreError").textContent="";
+ if(!scorer||!striker||!non||!bowler||striker===non){$("scoreError").textContent="Choose a scorer, two different batters and a bowler.";return}
+ if(extra==="wide"&&runs!==0){$("scoreError").textContent="For a wide, set runs off bat to 0 and enter any completed runs under Extra runs.";return}
+ if(extra==="wide"&&wicket&&!["run out","stumped"].includes(wicket)){$("scoreError").textContent="On a wide, the supported wicket types are Run out and Stumped.";return}
+ if(extra==="no-ball"&&wicket&&wicket!=="run out"){$("scoreError").textContent="On a no-ball, only Run out is supported by this scorer.";return}
+ if(wicket&&wicket!=="run out"&&(runs>0||extras>0)){$("scoreError").textContent="For this wicket type, record a dot ball. Use Run out if runs were completed.";return}
+ if(!extra&&extras>0){$("scoreError").textContent="Select an extra type before adding extra runs.";return}
+ const legalBalls=bs.filter(legal).length,ballNo=legalBalls%6+1,overNo=Math.floor(legalBalls/6);
+ const penalty=["wide","no-ball"].includes(extra)?1:0,totalExtra=extras+penalty;
+ const dismissed=wicket?$("dismissedBatsman").value:null;
+ if(wicket&&![striker,non].includes(dismissed)){$("scoreError").textContent="Select the striker or non-striker who was dismissed.";return}
+ const dismissedBefore=new Set(bs.filter(b=>b.wicket&&b.dismissed_batsman_id).map(b=>b.dismissed_batsman_id));
+ const batting=state.players.filter(p=>p.team===inn.batting_team);
+ const survivor=dismissed===striker?non:striker;
+ const incomingOptions=batting.filter(p=>!dismissedBefore.has(p.id)&&p.id!==dismissed&&p.id!==survivor);
+ let incoming=null;
+ if(wicket&&incomingOptions.length){
+  incoming=$("newBatter").value;
+  if(!incoming||!incomingOptions.some(p=>p.id===incoming)){$("scoreError").textContent="Select an eligible incoming batter.";return}
+ }
+ let nextStriker=striker,nextNon=non;
+ if(wicket){if(dismissed===nextStriker)nextStriker=incoming;else nextNon=incoming}
+ const completedRuns=runs+extras;
+ if(completedRuns%2)[nextStriker,nextNon]=[nextNon,nextStriker];
+ if(legal({extra_type:extra})&&ballNo===6)[nextStriker,nextNon]=[nextNon,nextStriker];
+ const payload={match_id:state.match.id,innings_no:inn.innings_no,over_number:overNo,ball_number:ballNo,striker_id:striker,non_striker_id:non,bowler_id:bowler,runs,runs_off_bat:runs,extra_type:extra||null,extra_runs:totalExtra,total_runs:runs+totalExtra,wicket:wicket||null,dismissed_batsman_id:dismissed,next_striker_id:nextStriker,next_non_striker_id:nextNon,next_batter_id:incoming,scorer_name:scorer};
+ try{
+  const oldTeam=stats(inn).total,oldPlayer=bs.filter(b=>b.striker_id===striker).reduce((sum,b)=>sum+Number(b.runs_off_bat),0);
+  await api("balls",{method:"POST",body:JSON.stringify(payload)});
+  $("wicket").value="";$("runs").value="0";$("extraType").value="";$("extraRuns").value="0";
+  await loadMatch(state.match.id);checkMilestones([payload],oldTeam,oldPlayer,striker);
+ }catch(e){$("scoreError").textContent=e.message}
+}
 async function undoBall(){const bs=state.balls.filter(b=>b.innings_no===state.match.current_innings);if(!bs.length){alert("No delivery to undo.");return}const last=bs[bs.length-1];if(!confirm(`Undo last delivery: ${last.total_runs} run(s)${last.wicket?", wicket":""}? This cannot be reversed.`))return;try{await api(`balls?id=eq.${last.id}`,{method:"DELETE",prefer:"return=minimal"});await loadMatch(state.match.id)}catch(e){alert("Undo failed: "+e.message)}}
 async function endInnings(){const inn=currentInnings(),next=state.match.current_innings+1;if(next>2){await finishMatch();return}if(!confirm("End this innings and start the second innings?"))return;await api(`innings?id=eq.${inn.id}`,{method:"PATCH",body:JSON.stringify({status:"completed"})});await api("innings",{method:"POST",body:JSON.stringify({match_id:state.match.id,innings_no:next,batting_team:inn.bowling_team,bowling_team:inn.batting_team,status:"live"})});await api(`matches?id=eq.${state.match.id}`,{method:"PATCH",body:JSON.stringify({current_innings:next})});await loadMatch(state.match.id)}
 async function finishMatch(){if(!confirm("Finish match and show final scorecard?"))return;stopPolling();await api(`matches?id=eq.${state.match.id}`,{method:"PATCH",body:JSON.stringify({status:"finished",finished_at:new Date().toISOString()})});await loadMatch(state.match.id)}
@@ -40,5 +151,5 @@ function showMilestone(kicker,title,detail){$("milestoneKicker").textContent=kic
 function checkMilestones(newBalls,oldTeam=0,oldPlayer=0,pid=null){const inn=currentInnings(),teamTotal=stats(inn).total;if([50,100,150,200,250,300].includes(teamTotal)&&teamTotal>oldTeam)showMilestone("TEAM MILESTONE",teamTotal===50?"TEAM FIFTY!":teamTotal===100?"TEAM CENTURY!":`TEAM ${teamTotal}!`,`${teamName(inn.batting_team)} reached ${teamTotal}`);if(pid){const batterTotal=state.balls.filter(b=>b.innings_no===inn.innings_no&&b.striker_id===pid).reduce((s,b)=>s+b.runs_off_bat,0);if([50,100,150,200].includes(batterTotal)&&batterTotal>oldPlayer)showMilestone("BATTER MILESTONE",batterTotal===50?"HALF-CENTURY!":batterTotal===100?"CENTURY!":`${batterTotal}!`,`${playerName(pid)} reached ${batterTotal} runs`)}}
 function renderSummary(){show("summaryView");const scores=state.innings.map(i=>({i,...stats(i)}));let result="Match ended";if(scores.length===2){const a=scores[0],b=scores[1];if(a.total>b.total)result=`${teamName(a.i.batting_team)} won by ${a.total-b.total} runs`;else if(b.total>a.total)result=`${teamName(b.i.batting_team)} won by ${Math.max(0,state.players.filter(p=>p.team===b.i.batting_team).length-b.wk)} wickets`;else result="Match tied"}$("resultText").textContent=result;$("summaryToss").textContent=`Toss: ${state.match.toss_winner} chose to ${state.match.toss_decision} · ${state.tournament?.name||""}`;const bat={};state.players.forEach(p=>{const pb=state.balls.filter(b=>b.striker_id===p.id),runs=pb.reduce((s,b)=>s+b.runs_off_bat,0),fours=pb.filter(b=>b.runs_off_bat===4).length,sixes=pb.filter(b=>b.runs_off_bat===6).length,legalBalls=pb.filter(legal).length;if(runs||legalBalls)bat[p.id]={runs,balls:legalBalls,fours,sixes}});$("battingSummary").innerHTML=Object.entries(bat).sort((a,b)=>b[1].runs-a[1].runs).map(([id,s])=>`<div class="row"><span>${esc(playerName(id))} <small class="muted">${s.balls} balls · ${s.fours}×4 · ${s.sixes}×6</small></span><strong>${s.runs}</strong></div>`).join("")||'<div class="empty">No batting data.</div>';const bowl={};state.balls.forEach(b=>{if(b.wicket&&["bowled","caught","lbw","stumped","hit wicket"].includes(b.wicket))bowl[b.bowler_id]=(bowl[b.bowler_id]||0)+1});$("bowlingSummary").innerHTML=Object.entries(bowl).sort((a,b)=>b[1]-a[1]).map(([id,v])=>`<div class="row"><span>${esc(playerName(id))}</span><strong>${v} wicket(s)</strong></div>`).join("")||'<div class="empty">No credited wickets.</div>';$("inningsSummary").innerHTML=scores.map(s=>`<div class="row"><span>${esc(teamName(s.i.batting_team))}</span><strong>${s.total}/${s.wk} · ${s.overs} ov · RR ${s.rr}</strong></div>`).join("");const moments=[];state.balls.forEach(b=>{if(b.runs_off_bat===6)moments.push(`Six by ${playerName(b.striker_id)}`);if(b.runs_off_bat===4)moments.push(`Four by ${playerName(b.striker_id)}`);if(b.wicket)moments.push(`${playerName(b.dismissed_batsman_id)} out — ${b.wicket}`)});$("momentsSummary").innerHTML=moments.slice(0,12).map(x=>`<div class="row"><span>${esc(x)}</span></div>`).join("")||'<div class="empty">No notable moments.</div>'}
 function bind(id,fn){$(id).addEventListener("click",fn)}
-bind("startTournamentBtn",()=>(show("tournamentCreateView"),$("tournamentCreateError").textContent=""));bind("joinTournamentBtn",listTournaments);bind("reloadHomeBtn",loadHome);bind("createTournamentBtn",createTournament);bind("backHomeBtn",loadHome);bind("joinBackBtn",listTournaments);bind("confirmJoinBtn",confirmJoin);bind("viewTournamentBtn",()=>openTournament(state.tournament.id));bind("tournamentHomeBtn",loadHome);bind("tournamentJoinBtn",()=>openJoin(state.tournament.id));bind("tournamentNewMatchBtn",startMatchSetup);bind("refreshTournamentBtn",refreshTournament);bind("matchSetupBackBtn",()=>openTournament(state.tournament.id));bind("createMatchBtn",createMatch);bind("addBallBtn",addBall);bind("undoBtn",undoBall);bind("endInningsBtn",endInnings);bind("finishMatchBtn",finishMatch);bind("refreshBtn",()=>loadMatch(state.match.id));bind("homeBtn",loadHome);bind("summaryTournamentBtn",()=>openTournament(state.tournament.id));bind("milestoneClose",()=>$("milestoneOverlay").classList.add("hidden"));$("wicket").onchange=()=>{$("dismissedWrap").classList.toggle("hidden",!$("wicket").value);$("newBatterWrap").classList.toggle("hidden",!$("wicket").value)};
+bind("startTournamentBtn",()=>(show("tournamentCreateView"),$("tournamentCreateError").textContent=""));bind("joinTournamentBtn",listTournaments);bind("reloadHomeBtn",loadHome);bind("createTournamentBtn",createTournament);bind("backHomeBtn",loadHome);bind("joinBackBtn",listTournaments);bind("confirmJoinBtn",confirmJoin);bind("viewTournamentBtn",()=>openTournament(state.tournament.id));bind("tournamentHomeBtn",loadHome);bind("tournamentJoinBtn",()=>openJoin(state.tournament.id));bind("tournamentNewMatchBtn",startMatchSetup);bind("refreshTournamentBtn",refreshTournament);bind("matchSetupBackBtn",()=>openTournament(state.tournament.id));bind("createMatchBtn",createMatch);bind("addBallBtn",addBall);bind("undoBtn",undoBall);bind("endInningsBtn",endInnings);bind("finishMatchBtn",finishMatch);bind("refreshBtn",()=>loadMatch(state.match.id));bind("homeBtn",loadHome);bind("summaryTournamentBtn",()=>openTournament(state.tournament.id));bind("milestoneClose",()=>$("milestoneOverlay").classList.add("hidden"));$("wicket").onchange=()=>{if(currentInnings())fillPlayerSelects(currentInnings(),state.balls.filter(b=>b.innings_no===state.match.current_innings))};$("dismissedBatsman").onchange=()=>{if(currentInnings())fillPlayerSelects(currentInnings(),state.balls.filter(b=>b.innings_no===state.match.current_innings))};
 init();
