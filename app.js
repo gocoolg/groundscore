@@ -17,7 +17,8 @@ const state = {
   teams: [], teamPlayers: {}, poll: null, current: null, saving: false,
   selectedScoreTab: "scorer", selectedTournamentTab: "matches",
   lineupConfirmed: false, pendingBatterReview: false, milestones: new Set(), pendingKey: null,
-  toss: null
+  toss: null, squadDraft: { team1: [], team2: [] }, teamCreationDraft: [],
+  loaderDepth: 0, loaderStartedAt: 0, loaderTimer: null
 };
 
 function esc(value) {
@@ -43,12 +44,93 @@ function activeBalls(inningsNo) {
 function localScorer() {
   return localStorage.getItem("groundscore_scorer") || "";
 }
+const SQUAD_FIELDS = {
+  team1: { input: "players1Input", textarea: "players1", chips: "players1Chips" },
+  team2: { input: "players2Input", textarea: "players2", chips: "players2Chips" },
+  teamCreation: { input: "newTeamPlayerInput", textarea: "newTeamPlayers", chips: "newTeamPlayersChips" }
+};
+function updateSquadField(key) {
+  const field = SQUAD_FIELDS[key];
+  const names = key === "teamCreation" ? state.teamCreationDraft : state.squadDraft[key];
+  $(field.textarea).value = names.join(", ");
+  $(field.chips).innerHTML = names.map((name, index) =>
+    '<span class="squad-chip"><span>' + esc(name) + '</span><button type="button" data-remove-squad="' +
+    key + '" data-index="' + index + '" aria-label="Remove ' + esc(name) + '">×</button></span>'
+  ).join("");
+}
+function setSquadNames(key, names) {
+  const unique = [];
+  const seen = new Set();
+  (names || []).forEach(value => {
+    const name = String(value || "").trim().replace(/\\s+/g, " ");
+    const normalized = name.toLocaleLowerCase();
+    if (name && !seen.has(normalized)) { seen.add(normalized); unique.push(name); }
+  });
+  if (key === "teamCreation") state.teamCreationDraft = unique;
+  else state.squadDraft[key] = unique;
+  updateSquadField(key);
+}
+function addSquadEntry(key) {
+  const field = SQUAD_FIELDS[key];
+  const input = $(field.input);
+  const entries = parseNames(input.value);
+  if (!entries.length) { input.focus(); return; }
+  const current = key === "teamCreation" ? state.teamCreationDraft : state.squadDraft[key];
+  const seen = new Set(current.map(x => x.toLocaleLowerCase()));
+  const additions = entries.filter(name => {
+    const normalized = name.toLocaleLowerCase();
+    if (!normalized || seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
+  const next = [...current, ...additions];
+  setSquadNames(key, next);
+  input.value = "";
+  input.focus();
+}
+function removeSquadEntry(key, index) {
+  const current = key === "teamCreation" ? state.teamCreationDraft : state.squadDraft[key];
+  setSquadNames(key, current.filter((_, i) => i !== index));
+}
+function setBatterSelection(changed) {
+  const striker = $("striker").value;
+  const nonStriker = $("nonStriker").value;
+  if (striker && nonStriker && striker === nonStriker) {
+    if (changed === "striker") $("nonStriker").value = "";
+    else $("striker").value = "";
+    state.lineupConfirmed = false;
+    toast("A player cannot be both striker and non-striker. Choose another batter.");
+  }
+  if (state.match) renderScore();
+}
+
 function overText(n) { return Math.floor(n / 6) + "." + (n % 6); }
 function showView(id) {
   ["homeView","tournamentCreateView","tournamentListView","joinView","tournamentView","matchSetupView","scoreView","summaryView"]
     .forEach(view => $(view)?.classList.toggle("hidden", view !== id));
   $("homeBtn").classList.toggle("hidden", id === "homeView");
   window.scrollTo({ top: 0, behavior: "auto" });
+}
+async function withLoader(message, action) {
+  const outermost = state.loaderDepth === 0;
+  state.loaderDepth += 1;
+  if (outermost) {
+    state.loaderStartedAt = Date.now();
+    $("loaderMessage").textContent = message || "Getting the ground ready…";
+    $("appLoader").classList.remove("hidden");
+  }
+  try {
+    return await action();
+  } finally {
+    state.loaderDepth = Math.max(0, state.loaderDepth - 1);
+    if (state.loaderDepth === 0) {
+      const elapsed = Date.now() - state.loaderStartedAt;
+      const remaining = Math.max(0, 360 - elapsed);
+      clearTimeout(state.loaderTimer);
+      state.loaderTimer = setTimeout(() => $("appLoader").classList.add("hidden"), remaining);
+      if (!remaining) $("appLoader").classList.add("hidden");
+    }
+  }
 }
 function toast(message) {
   const el = $("toast");
@@ -297,7 +379,7 @@ function renderTeams() {
 }
 async function createTeam() {
   const name = $("newTeamName").value.trim();
-  const players = parseNames($("newTeamPlayers").value);
+  const players = [...state.teamCreationDraft];
   $("teamCreateError").textContent = "";
   if (!name || players.length < 2) { $("teamCreateError").textContent = "Enter a team name and at least two squad members."; return; }
   try {
@@ -310,7 +392,9 @@ async function createTeam() {
       method: "POST",
       body: JSON.stringify(players.map(player => ({ team_id: team.id, name: player })))
     });
-    $("newTeamName").value = ""; $("newTeamPlayers").value = "";
+    $("newTeamName").value = "";
+    $("newTeamPlayerInput").value = "";
+    setSquadNames("teamCreation", []);
     await refreshTournament();
     setActiveTournamentTab("teams");
     toast("Team and squad saved");
@@ -334,17 +418,34 @@ async function ensureTeamSquad(teamId, names) {
     });
   }
 }
-async function onTeamNameChange(inputId, squadId) {
+async function onTeamNameChange(inputId, squadKey) {
   const name = $(inputId).value.trim();
   const team = state.teams.find(t => t.name.toLowerCase() === name.toLowerCase());
-  if (!team) return;
-  const squad = state.teamPlayers[team.id] || [];
-  if (squad.length) $(squadId).value = squad.map(p => p.name).join(", ");
+  if (!team) {
+    setSquadNames(squadKey, state.squadDraft[squadKey]);
+    return;
+  }
+  let squad = state.teamPlayers[team.id];
+  if (!squad) {
+    squad = await api("team_players?team_id=eq." + team.id + "&select=*&order=name.asc");
+    state.teamPlayers[team.id] = squad;
+  }
+  setSquadNames(squadKey, squad.map(player => player.name));
 }
 
 async function startMatchSetup() {
   state.members = await api("tournament_members?tournament_id=eq." + state.tournament.id + "&select=*&order=name.asc");
   state.teams = await api("teams?tournament_id=eq." + state.tournament.id + "&select=*&order=name.asc");
+  state.teamPlayers = {};
+  await Promise.all(state.teams.map(async team => {
+    state.teamPlayers[team.id] = await api("team_players?team_id=eq." + team.id + "&select=*&order=name.asc");
+  }));
+  state.squadDraft = { team1: [], team2: [] };
+  setSquadNames("team1", []);
+  setSquadNames("team2", []);
+  setSquadNames("teamCreation", []);
+  $("players1Input").value = ""; $("players2Input").value = "";
+  $("newTeamPlayerInput").value = "";
   $("matchScorer").innerHTML = '<option value="">Choose your name</option>' + state.members.map(member =>
     '<option value="' + esc(member.name) + '">' + esc(member.name) + "</option>"
   ).join("");
@@ -641,11 +742,18 @@ function renderScore() {
   }
   const lastDelivery = activeBalls(innings.innings_no).slice(-1)[0];
   const afterWicket = !!lastDelivery?.wicket;
-  const strikerSelection = current.strikerId || (afterWicket ? "" : opening.strikerId);
-  const nonStrikerSelection = current.nonStrikerId || (afterWicket ? "" : opening.nonStrikerId);
+  let strikerSelection = current.strikerId || (afterWicket ? "" : opening.strikerId);
+  let nonStrikerSelection = current.nonStrikerId || (afterWicket ? "" : opening.nonStrikerId);
+  if (strikerSelection && nonStrikerSelection && strikerSelection === nonStrikerSelection) {
+    // Repair invalid legacy/current UI state before it can be confirmed.
+    nonStrikerSelection = "";
+    state.lineupConfirmed = false;
+  }
   state.current = current;
-  fillSelect($("striker"), batting, strikerSelection, "Select striker");
-  fillSelect($("nonStriker"), batting, nonStrikerSelection, "Select non-striker");
+  const strikerOptions = batting.filter(player => player.id !== nonStrikerSelection);
+  const nonStrikerOptions = batting.filter(player => player.id !== strikerSelection);
+  fillSelect($("striker"), strikerOptions, strikerSelection, "Select striker");
+  fillSelect($("nonStriker"), nonStrikerOptions, nonStrikerSelection, "Select non-striker");
   const availableBowlers = current.needsNewBowler ? bowling.filter(p => p.id !== current.previousOverBowlerId) : bowling;
   fillSelect($("bowler"), availableBowlers, current.bowlerId || opening.bowlerId, current.needsNewBowler ? "Choose new bowler" : "Select bowler");
   const activeBatters = [current.strikerId || $("striker").value, current.nonStrikerId || $("nonStriker").value].filter(Boolean);
@@ -673,10 +781,13 @@ function renderScore() {
     (needsBatterConfirm ? "NEW BATTER — check the batting pair and confirm before the next ball." :
     (activeBalls(innings.innings_no).length === 0 ? "Choose the opening pair and bowler, then confirm." :
     (current.needsNewBowler ? "New bowler selected ✓" : "Scoring as " + scorer))));
-  $("confirmLineupBtn").textContent = state.lineupConfirmed ? "Players confirmed ✓" :
-    (needsBatterConfirm ? "Confirm new batters" : "Confirm players");
+  $("confirmLineupBtn").setAttribute("aria-label", state.lineupConfirmed ? "Players confirmed" :
+    (needsBatterConfirm ? "Confirm new batters" : "Confirm players"));
+  $("confirmLineupBtn").title = state.lineupConfirmed ? "Players confirmed" : "Confirm selected players";
   $("confirmLineupBtn").classList.toggle("confirmed", state.lineupConfirmed);
   $("confirmLineupBtn").classList.toggle("needs-attention", needsBatterConfirm || (!state.lineupConfirmed && hasOpeningSelection));
+  $("lineupStatusDot").classList.toggle("confirmed", state.lineupConfirmed);
+  $("lineupStatusDot").classList.toggle("needs-attention", needsBatterConfirm || (!state.lineupConfirmed && hasOpeningSelection));
   $("confirmLineupBtn").disabled = !scorer || !hasOpeningSelection || closed || state.saving;
   $("bowler").classList.toggle("needs-attention", !!(current.needsNewBowler && !current.bowlerId));
   $("striker").classList.toggle("needs-attention", needsBatterConfirm);
@@ -1093,20 +1204,20 @@ async function backToTournament() {
 
 function attachEvents() {
   bind("startTournamentBtn","click",() => showView("tournamentCreateView"));
-  bind("joinTournamentBtn","click",() => listTournaments().catch(showError));
-  bind("reloadHomeBtn","click",() => loadHome().catch(showError));
-  bind("createTournamentBtn","click",createTournament);
-  bind("backHomeBtn","click",() => loadHome().catch(showError));
-  bind("joinBackBtn","click",() => listTournaments().catch(showError));
-  bind("confirmJoinBtn","click",confirmJoin);
-  bind("viewTournamentBtn","click",() => openTournament(state.tournament.id).catch(showError));
-  bind("tournamentHomeBtn","click",() => loadHome().catch(showError));
-  bind("tournamentJoinBtn","click",() => openJoin(state.tournament.id).catch(showError));
-  bind("tournamentNewMatchBtn","click",() => startMatchSetup().catch(showError));
-  bind("refreshTournamentBtn","click",() => refreshTournament().catch(showError));
-  bind("addTeamBtn","click",createTeam);
-  bind("matchSetupBackBtn","click",backToTournament);
-  bind("createMatchBtn","click",createMatch);
+  bind("joinTournamentBtn","click",() => withLoader("Finding tournaments…", listTournaments).catch(showError));
+  bind("reloadHomeBtn","click",() => withLoader("Refreshing the ground…", loadHome).catch(showError));
+  bind("createTournamentBtn","click",() => withLoader("Creating your tournament…", createTournament).catch(showError));
+  bind("backHomeBtn","click",() => withLoader("Returning home…", loadHome).catch(showError));
+  bind("joinBackBtn","click",() => withLoader("Loading tournaments…", listTournaments).catch(showError));
+  bind("confirmJoinBtn","click",() => withLoader("Joining tournament…", confirmJoin).catch(showError));
+  bind("viewTournamentBtn","click",() => withLoader("Opening tournament…", () => openTournament(state.tournament.id)).catch(showError));
+  bind("tournamentHomeBtn","click",() => withLoader("Returning home…", loadHome).catch(showError));
+  bind("tournamentJoinBtn","click",() => withLoader("Opening player check-in…", () => openJoin(state.tournament.id)).catch(showError));
+  bind("tournamentNewMatchBtn","click",() => withLoader("Preparing match setup…", startMatchSetup).catch(showError));
+  bind("refreshTournamentBtn","click",() => withLoader("Refreshing fixtures…", refreshTournament).catch(showError));
+  bind("addTeamBtn","click",() => withLoader("Saving team and squad…", createTeam).catch(showError));
+  bind("matchSetupBackBtn","click",() => withLoader("Returning to tournament…", backToTournament).catch(showError));
+  bind("createMatchBtn","click",() => withLoader("Setting up the match…", createMatch).catch(showError));
   bind("tossCallHeads","click",() => chooseTossCall("heads"));
   bind("tossCallTails","click",() => chooseTossCall("tails"));
   bind("flipCoinBtn","click",flipCoin);
@@ -1121,22 +1232,39 @@ function attachEvents() {
   bind("endInningsBtn","click",endInnings);
   bind("finishMatchBtn","click",() => finishMatch(false).catch(showError));
   bind("shareMatchBtn","click",shareMatch);
-  bind("refreshBtn","click",() => loadMatch(state.match.id).catch(showError));
-  bind("backToTournamentBtn","click",backToTournament);
-  bind("summaryTournamentBtn","click",backToTournament);
-  bind("homeBtn","click",() => loadHome().catch(showError));
-  bind("brandHomeBtn","click",() => loadHome().catch(showError));
+  bind("refreshBtn","click",() => withLoader("Refreshing scorecard…", () => loadMatch(state.match.id)).catch(showError));
+  bind("backToTournamentBtn","click",() => withLoader("Opening tournament…", backToTournament).catch(showError));
+  bind("summaryTournamentBtn","click",() => withLoader("Opening tournament…", backToTournament).catch(showError));
+  bind("homeBtn","click",() => withLoader("Returning home…", loadHome).catch(showError));
+  bind("brandHomeBtn","click",() => withLoader("Returning home…", loadHome).catch(showError));
   bind("milestoneClose","click",() => $("milestoneOverlay").classList.add("hidden"));
   bind("tossDecisionSheet","click",event => { if(event.target.id === "tossDecisionSheet") { /* winner must choose */ } });
 
   bind("extraKind","change",updateExtraHelp);
   bind("wicketType","change",() => $("runOutFields").classList.toggle("hidden", $("wicketType").value !== "run out"));
-  bind("team1","change",() => { resetTossUI(); onTeamNameChange("team1","players1").catch(showError); });
-  bind("team2","change",() => { resetTossUI(); onTeamNameChange("team2","players2").catch(showError); });
-  bind("striker","change",() => { if (state.match) { if (!activeBalls(state.match.current_innings).length) state.lineupConfirmed = false; renderScore(); } });
-  bind("nonStriker","change",() => { if (state.match) { if (!activeBalls(state.match.current_innings).length) state.lineupConfirmed = false; renderScore(); } });
+  bind("team1","change",() => { resetTossUI(); onTeamNameChange("team1","team1").catch(showError); });
+  bind("team2","change",() => { resetTossUI(); onTeamNameChange("team2","team2").catch(showError); });
+  bind("addPlayers1Btn","click",() => addSquadEntry("team1"));
+  bind("addPlayers2Btn","click",() => addSquadEntry("team2"));
+  bind("addTeamPlayerBtn","click",() => addSquadEntry("teamCreation"));
+  ["players1Input","players2Input","newTeamPlayerInput"].forEach((id,index) => {
+    const keys = ["team1","team2","teamCreation"];
+    bind(id,"keydown",event => {
+      if (event.key === "Enter" || event.key === ",") {
+        event.preventDefault();
+        addSquadEntry(keys[index]);
+      }
+    });
+    bind(id,"blur",() => { if ($(id).value.trim()) addSquadEntry(keys[index]); });
+  });
+  document.addEventListener("click",event => {
+    const button = event.target.closest("[data-remove-squad]");
+    if (button) removeSquadEntry(button.dataset.removeSquad, Number(button.dataset.index));
+  });
+  bind("striker","change",() => { if (!activeBalls(state.match?.current_innings || 0).length) state.lineupConfirmed = false; setBatterSelection("striker"); });
+  bind("nonStriker","change",() => { if (!activeBalls(state.match?.current_innings || 0).length) state.lineupConfirmed = false; setBatterSelection("nonStriker"); });
   bind("bowler","change",() => { if (state.match) { renderScore(); } });
-  document.querySelectorAll("[data-home]").forEach(button => button.addEventListener("click", () => loadHome().catch(showError)));
+  document.querySelectorAll("[data-home]").forEach(button => button.addEventListener("click", () => withLoader("Returning home…", loadHome).catch(showError)));
   document.querySelectorAll("[data-score-tab]").forEach(button =>
     button.addEventListener("click", () => setActiveScoreTab(button.dataset.scoreTab))
   );
@@ -1158,7 +1286,7 @@ function attachEvents() {
 }
 
 attachEvents();
-init().catch(error => {
+withLoader("Setting up the ground…", init).catch(error => {
   $("configNotice").classList.remove("hidden");
   $("configNotice").textContent = "GroundScore could not start: " + error.message;
 });
