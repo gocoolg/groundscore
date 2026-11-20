@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  buildDelivery, deliveryNotation, inningsStats, currentBattingState,
+  buildDelivery, deliveryNotation, inningsStats, currentBattingState, chaseProgress,
   battingScorecard, bowlingScorecard
 } from "../js/scoring-engine.js";
 
@@ -184,4 +184,28 @@ test("no-ball accepts six additional runs and displays NB+6", () => {
 test("wide with only the penalty is displayed as WD", () => {
   const ball = delivery({ extraType: "wide", extraRuns: 0 });
   assert.equal(deliveryNotation(ball), "WD");
+});
+
+test("chase progress reports runs and balls remaining", () => {
+  const rows = [
+    { innings_no: 1, total_runs: 52, extra_type: null },
+    { innings_no: 2, total_runs: 2, extra_type: null },
+    { innings_no: 2, total_runs: 1, extra_type: "wide" }
+  ];
+  const progress = chaseProgress(rows, 1, 2, 2);
+  assert.equal(progress.target, 53);
+  assert.equal(progress.runsRequired, 50);
+  assert.equal(progress.ballsRemaining, 11);
+  assert.equal(progress.reached, false);
+});
+test("chase is complete as soon as target is reached", () => {
+  const rows = [
+    { innings_no: 1, total_runs: 52, extra_type: null },
+    { innings_no: 2, total_runs: 52, extra_type: null },
+    { innings_no: 2, total_runs: 1, extra_type: "wide" }
+  ];
+  const progress = chaseProgress(rows, 1, 2, 2);
+  assert.equal(progress.target, 53);
+  assert.equal(progress.runsRequired, 0);
+  assert.equal(progress.reached, true);
 });
