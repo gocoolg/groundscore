@@ -47,6 +47,35 @@ Repository Settings → Pages → Deploy from branch → `main` → `/(root)`. S
 ## Public access and security
 The current no-login mode deliberately lets the public anonymous role read/write tournament and scoring tables. This is convenient for a trusted recreational group but not tamper-proof: anyone with access to the Supabase project endpoint may potentially change or delete data. For formal competitions, introduce authenticated scorers, organizer permissions, restrictive RLS, server-side delivery RPC and an immutable correction audit trail.
 
+
+## Tournament deletion (admin password)
+
+Tournament deletion is performed server-side; the admin password is never stored in `app.js`, `config.js`, or other public browser files.
+
+1. Run [`supabase/migrations/20261120_delete_tournament_admin.sql`](supabase/migrations/20261120_delete_tournament_admin.sql) in Supabase Dashboard → SQL Editor.
+2. Install the Supabase CLI and sign in:
+   ```bash
+   supabase login
+   supabase link --project-ref shyrcxrgccxtlsztebkb
+   ```
+3. Set the Edge Function password as a Supabase secret. To use the password requested for this first setup:
+   ```bash
+   supabase secrets set TOURNAMENT_DELETE_PASSWORD='Scoredel'
+   ```
+   This phrase has been shared in the development conversation. For a public app, replace it with a unique, stronger password before enabling deletion.
+4. Deploy the Edge Function:
+   ```bash
+   supabase functions deploy delete-tournament --no-verify-jwt
+   ```
+
+The app sends the password in the HTTPS request to the Edge Function. The function checks it server-side, then calls a restricted database function using the service-role credential supplied by Supabase. It deletes the tournament's matches first (including innings, players and deliveries), then deletes the tournament (including members, teams and saved squads). The UI also requires the exact tournament name as a second confirmation.
+
+The Edge Function is not deployed by GitHub Pages. It must be deployed separately using the CLI commands above. Do not put the service-role/secret key or the delete password in GitHub source files.
+
+## Clear test data
+
+Use [`supabase/reset_test_data.sql`](supabase/reset_test_data.sql) to inspect the current database counts and list tournaments with their match/delivery counts. The file is read-only by default. It includes a clearly commented reset block that deletes **all** matches and tournaments if uncommented. Only run that block if the Supabase project contains disposable test data exclusively; it also removes dependent scorecards, deliveries, players, memberships, teams and squads. Back up anything that should be retained first.
+
 ## License
 MIT — see LICENSE.
 
