@@ -502,7 +502,15 @@ async function createMatch() {
     state.selectedScoreTab = "scorer";
     await loadMatch(match.id);
     toast("Match ready. Confirm the opening players.");
-  } catch (error) { $("setupError").textContent = error.message; }
+  } catch (error) {
+    const message = String(error?.message || error);
+    if (/toss_call|toss_result|toss_tossed_at|schema cache|PGRST204/i.test(message)) {
+      $("setupError").textContent =
+        "Coin toss database update is required. Open Supabase → SQL Editor, run supabase/add_coin_toss_columns.sql from this GitHub repository, then retry Create match. Your toss result is still selected on this screen.";
+    } else {
+      $("setupError").textContent = message;
+    }
+  }
 }
 
 function stopPolling() {
