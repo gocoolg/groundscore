@@ -357,30 +357,42 @@ async function startMatchSetup() {
   showView("matchSetupView");
 }
 function resetTossUI() {
-  state.toss = null;
+  // Heads is the default call. The user may switch to tails before flipping.
+  state.toss = { call: "heads", result: null, winnerKey: null, decision: null, tossedAt: null };
   $("tossDecisionSheet").classList.add("hidden");
   document.body.classList.remove("sheet-open");
-  $("tossCallHeads").classList.remove("selected");
+  $("tossCallHeads").classList.add("selected");
   $("tossCallTails").classList.remove("selected");
-  $("tossStatus").textContent = "Team 1: choose heads or tails.";
-  $("coinFace").textContent = "?";
+  $("tossStatus").textContent = "Team 1 call: HEADS selected by default. Choose TAILS to switch, or flip the coin.";
+  $("coinFace").textContent = "H";
   $("coinFace").classList.remove("flipping");
   $("tossWinnerStatus").textContent = "";
-  $("flipCoinBtn").disabled = true;
+  $("flipCoinBtn").disabled = false;
   $("flipCoinBtn").classList.remove("hidden");
   $("tossDecisionSummary").classList.add("hidden");
+  $("tossDecisionResult").textContent = "";
   $("createMatchBtn").disabled = true;
 }
 function chooseTossCall(call) {
-  if (state.toss?.result) return;
+  if (state.toss?.result || !["heads", "tails"].includes(call)) return;
   state.toss = { call, result: null, winnerKey: null, decision: null, tossedAt: null };
   $("tossCallHeads").classList.toggle("selected", call === "heads");
   $("tossCallTails").classList.toggle("selected", call === "tails");
+  $("coinFace").textContent = call === "heads" ? "H" : "T";
   $("tossStatus").textContent = "Team 1 called " + call.toUpperCase() + ". Flip the coin.";
   $("flipCoinBtn").disabled = false;
+  $("flipCoinBtn").classList.remove("hidden");
 }
 function flipCoin() {
-  if (!state.toss?.call || state.toss.result) return;
+  if (!state.toss?.call || state.toss.result) {
+    toast("Choose heads or tails before flipping.");
+    return;
+  }
+  if (!String($("team1").value || "").trim() || !String($("team2").value || "").trim()) {
+    toast("Enter both team names before the toss.");
+    return;
+  }
+  $("flipCoinBtn").disabled = true;
   const bytes = new Uint8Array(1);
   if (window.crypto?.getRandomValues) window.crypto.getRandomValues(bytes);
   else bytes[0] = Math.floor(Math.random() * 256);
