@@ -166,6 +166,17 @@
         <span><b>NON</b><strong id="stickyNonStriker">—</strong></span>
         <span><b>BOWL</b><strong id="stickyBowler">—</strong></span>
       </div>
+      <div id="chaseFooter" class="chase-footer hidden" aria-live="polite">
+        <div class="chase-stat chase-primary">
+          <span>TO WIN</span><strong id="chaseRunsRequired">—</strong><small>runs required</small>
+        </div>
+        <div class="chase-stat">
+          <span>TIME LEFT</span><strong id="chaseBallsRemaining">—</strong><small>balls remaining</small>
+        </div>
+        <div class="chase-stat chase-overs">
+          <span>OVERS LEFT</span><strong id="chaseOversRemaining">—</strong><small>overs remaining</small>
+        </div>
+      </div>
     </div>
 
     <div class="pill-tabs score-tabs">
@@ -239,6 +250,10 @@
 
   <section id="summaryView" class="view hidden">
     <div class="result-hero"><span class="eyebrow light-text">MATCH COMPLETE</span><h1 id="resultText"></h1><p id="summaryToss" class="muted-light"></p></div>
+    <section class="final-scorecard-section">
+      <div class="section-heading"><div><span class="eyebrow">FULL MATCH SCORECARD</span><h2>Innings scorecards</h2></div></div>
+      <div id="finalScorecard" class="final-scorecard-list"></div>
+    </section>
     <div class="summary-grid">
       <div class="card"><h3>Top run-scorers</h3><div id="battingSummary"></div></div>
       <div class="card"><h3>Top wicket-takers</h3><div id="bowlingSummary"></div></div>
