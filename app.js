@@ -358,6 +358,8 @@ async function startMatchSetup() {
 }
 function resetTossUI() {
   state.toss = null;
+  $("tossDecisionSheet").classList.add("hidden");
+  document.body.classList.remove("sheet-open");
   $("tossCallHeads").classList.remove("selected");
   $("tossCallTails").classList.remove("selected");
   $("tossStatus").textContent = "Team 1: choose heads or tails.";
