@@ -32,21 +32,18 @@ async function loadMatchData(id){
   api("balls?match_id=eq."+id+"&select=*&order=created_at.asc")
  ]);
  if(!m[0])return;
- const oldInningsNo=state.match.current_innings;
- const oldBalls=state.balls;
- const oldIds=new Set(oldBalls.map(b=>b.id));
- const oldThisInnings=oldBalls.filter(b=>b.innings_no===oldInningsNo);
+ const oldBalls=state.balls,oldIds=new Set(oldBalls.map(b=>b.id));
+ const newBalls=balls.filter(b=>!oldIds.has(b.id));
+ const latestNew=newBalls[newBalls.length-1];
+ const relevantInnings=latestNew?latestNew.innings_no:m[0].current_innings;
+ const oldThisInnings=oldBalls.filter(b=>b.innings_no===relevantInnings);
  const oldTeamTotal=oldThisInnings.reduce((sum,b)=>sum+Number(b.total_runs),0);
  const oldPlayerTotals={};
  oldThisInnings.forEach(b=>{oldPlayerTotals[b.striker_id]=(oldPlayerTotals[b.striker_id]||0)+Number(b.runs_off_bat)});
- const newBalls=balls.filter(b=>!oldIds.has(b.id));
  state.match=m[0];state.innings=innings;state.balls=balls;
  if(state.match.status==="finished"){stopPolling();renderSummary();return}
  renderScore();
- if(newBalls.length){
-  const last=newBalls[newBalls.length-1], pid=last.striker_id;
-  checkMilestones(newBalls,oldTeamTotal,oldPlayerTotals[pid]||0,pid);
- }
+ if(latestNew)checkMilestones(newBalls,oldTeamTotal,oldPlayerTotals[latestNew.striker_id]||0,latestNew.striker_id);
 }
 function stopPolling(){if(state.poll)clearInterval(state.poll);state.poll=null}
 function stats(inn){const balls=state.balls.filter(b=>b.innings_no===inn.innings_no),total=balls.reduce((s,b)=>s+Number(b.total_runs),0),wk=balls.filter(b=>b.wicket).length,legalBalls=balls.filter(legal).length;return{balls,total,wk,legalBalls,overs:overText(legalBalls),rr:legalBalls?(total/(legalBalls/6)).toFixed(2):"0.00"}}
@@ -100,7 +97,8 @@ function fillPlayerSelects(inn,balls){
  const dismissedNow=$("dismissedBatsman").value;
  const survivor=active.find(id=>id&&id!==dismissedNow);
  const incoming=batting.filter(p=>!dismissedBefore.has(p.id)&&p.id!==dismissedNow&&p.id!==survivor);
- setSelectOptions("newBatter",incoming,"","Choose incoming batter");
+ const oldIncoming=$("newBatter").value;
+ setSelectOptions("newBatter",incoming,oldIncoming,"Choose incoming batter");
  const showWicket=!!$("wicket").value;
  $("dismissedWrap").classList.toggle("hidden",!showWicket);
  $("newBatterWrap").classList.toggle("hidden",!showWicket);
