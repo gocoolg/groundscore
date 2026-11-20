@@ -7,6 +7,7 @@ import {
   bowlingScorecard,
   fallOfWickets,
   matchResult,
+  chaseProgress,
   tournamentStandings
 } from "./js/scoring-engine.js";
 
@@ -19,7 +20,7 @@ const state = {
   selectedScoreTab: "scorer", selectedTournamentTab: "matches",
   lineupConfirmed: false, pendingBatterReview: false, milestones: new Set(), pendingKey: null,
   toss: null, squadDraft: { team1: [], team2: [] }, teamCreationDraft: [],
-  loaderDepth: 0, loaderStartedAt: 0, loaderTimer: null
+  loaderDepth: 0, loaderStartedAt: 0, loaderTimer: null, autoCompleting: false
 };
 
 function esc(value) {
@@ -649,6 +650,7 @@ async function loadMatch(matchId) {
   renderScore();
   setActiveScoreTab(state.selectedScoreTab || "scorer");
   state.poll = setInterval(() => refreshLiveMatch(matchId).catch(() => {}), 8000);
+  await completeMatchIfTargetReached();
 }
 async function refreshLiveMatch(matchId) {
   if (!state.match || state.match.id !== matchId || state.match.status === "finished") return;
@@ -684,6 +686,7 @@ async function refreshLiveMatch(matchId) {
   }
   if (state.selectedScoreTab === "scorecard") renderScorecard();
   if (state.selectedScoreTab === "commentary") renderCommentary();
+  await completeMatchIfTargetReached();
 }
 function fillSelect(element, players, selectedId, placeholder) {
   element.innerHTML = '<option value="">' + esc(placeholder) + "</option>" +
@@ -695,11 +698,13 @@ function renderScore() {
   if (!innings) return;
   const stats = inningsStats(state.balls, innings.innings_no, state.match.overs);
   const first = state.innings.find(i => Number(i.innings_no) === 1);
-  const firstStats = first ? inningsStats(state.balls, 1, state.match.overs) : null;
-  const target = Number(state.match.current_innings) === 2 && firstStats ? firstStats.total + 1 : null;
-  const remaining = Math.max(0, Number(state.match.overs) * 6 - stats.legalBalls);
-  const runsNeeded = target === null ? null : Math.max(0, target - stats.total);
-  const requiredRate = target === null ? null : (remaining ? runsNeeded / (remaining / 6) : (runsNeeded ? Infinity : 0));
+  const chase = Number(state.match.current_innings) === 2
+    ? chaseProgress(state.balls, 1, 2, state.match.overs)
+    : null;
+  const target = chase ? chase.target : null;
+  const remaining = chase ? chase.ballsRemaining : Math.max(0, Number(state.match.overs) * 6 - stats.legalBalls);
+  const runsNeeded = chase ? chase.runsRequired : null;
+  const requiredRate = chase === null ? null : (remaining ? runsNeeded / (remaining / 6) : (runsNeeded ? Infinity : 0));
   $("matchTitle").textContent = state.match.team1 + " vs " + state.match.team2;
   $("matchSubTitle").textContent = (state.tournament?.name || "Friendly match") + " · " +
     (state.match.round_name || (state.match.overs + " overs"));
@@ -707,7 +712,16 @@ function renderScore() {
   $("inningsLabel").textContent = (Number(state.match.current_innings) === 1 ? "1st" : "2nd") + " innings · " + teamName(innings.batting_team);
   $("scoreText").textContent = stats.total + "/" + stats.wickets;
   $("oversText").textContent = stats.overs + " / " + state.match.overs + " ov";
-  $("targetText").textContent = target === null ? "" : (runsNeeded === 0 ? "Target achieved" : "Target " + target + " · Need " + runsNeeded + " off " + remaining);
+  $("targetText").textContent = target === null ? "" : "Target " + target;
+  $("chaseFooter").classList.toggle("hidden", !chase || state.match.status !== "live");
+  if (chase) {
+    $("chaseRunsRequired").textContent = chase.runsRequired;
+    $("chaseBallsRemaining").textContent = chase.ballsRemaining;
+    $("chaseOversRemaining").textContent = chase.oversRemaining;
+    $("chaseFooter").classList.toggle("chase-achieved", chase.reached);
+  } else {
+    $("chaseFooter").classList.remove("chase-achieved");
+  }
   $("runRate").textContent = stats.runRateText;
   $("requiredRate").textContent = target === null ? "—" : (Number.isFinite(requiredRate) ? requiredRate.toFixed(2) : "—");
   $("scoreTournamentName").textContent = state.tournament?.name || "No tournament";
@@ -803,6 +817,14 @@ function renderScore() {
   $("endInningsBtn").textContent = target !== null && chaseDone ? "Finish chase →" : "End innings →";
   $("scoreError").textContent = closed ? (allOut ? "All out — end the innings." : oversDone ? "Over limit reached — end the innings." : "Target reached — finish the chase.") : "";
   renderOverStrip(innings.innings_no);
+  syncScoreStickyOffset();
+}
+function syncScoreStickyOffset() {
+  const sticky = $("matchSticky");
+  if (!sticky) return;
+  const apply = () => $("scoreView").style.setProperty("--scorebar-height", sticky.getBoundingClientRect().height + "px");
+  if (window.requestAnimationFrame) window.requestAnimationFrame(apply);
+  else apply();
 }
 function confirmLineup() {
   if (!localScorer()) { toast("Join the tournament before scoring"); return; }
@@ -1026,6 +1048,46 @@ async function endInnings() {
     toast("Second innings started");
   } catch (error) { toast("Could not end innings: " + error.message); }
 }
+async function completeMatchIfTargetReached() {
+  if (!state.match || state.match.status !== "live" ||
+      Number(state.match.current_innings) !== 2 || state.autoCompleting) return false;
+  const chase = chaseProgress(state.balls, 1, 2, state.match.overs);
+  if (!chase.reached) return false;
+  state.autoCompleting = true;
+  try {
+    const innings = currentInnings();
+    const finishedAt = new Date().toISOString();
+    if (innings && innings.status !== "completed") {
+      await api("innings?id=eq." + innings.id, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "completed" }),
+        prefer: "return=minimal"
+      });
+      innings.status = "completed";
+    }
+    await api("matches?id=eq." + state.match.id, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: "finished",
+        finished_at: finishedAt,
+        updated_at: finishedAt
+      }),
+      prefer: "return=minimal"
+    });
+    state.match.status = "finished";
+    state.match.finished_at = finishedAt;
+    stopPolling();
+    renderSummary();
+    showView("summaryView");
+    toast("Target reached — match completed!");
+    return true;
+  } catch (error) {
+    toast("Target reached, but match completion could not be saved: " + error.message);
+    return false;
+  } finally {
+    state.autoCompleting = false;
+  }
+}
 async function finishMatch(alreadyConfirmed) {
   if (!localScorer()) { toast("Join the tournament before finishing a match"); return; }
   if (!alreadyConfirmed && !confirm("Finish the match and publish the result?")) return;
@@ -1172,6 +1234,41 @@ function renderSummary() {
   });
   $("momentsSummary").innerHTML = moments.slice(0,12).map(x => '<div class="row"><span>' + esc(x) + "</span></div>").join("") ||
     '<div class="empty">No notable moments recorded.</div>';
+  renderFinalScorecard();
+}
+function renderFinalScorecard() {
+  $("finalScorecard").innerHTML = state.innings.map(innings => {
+    const batters = playersFor(innings.batting_team);
+    const bowlers = playersFor(innings.bowling_team);
+    const score = inningsStats(state.balls, innings.innings_no, state.match.overs);
+    const battingFigures = battingScorecard(state.balls, batters, innings.innings_no);
+    const bowlingFigures = bowlingScorecard(state.balls, bowlers, innings.innings_no);
+    const battingTable = htmlTable(
+      ["Batter","Dismissal","R","B","4s","6s","SR"],
+      battingFigures.map(p => [esc(p.name), esc(p.dismissal), p.runs, p.balls, p.fours, p.sixes, p.strikeRate.toFixed(1)]),
+      "No batting figures."
+    );
+    const bowlingTable = htmlTable(
+      ["Bowler","O","M","R","W","Eco"],
+      bowlingFigures.map(p => [esc(p.name), p.overs, p.maidens, p.runs, p.wickets, p.economy.toFixed(2)]),
+      "No bowling figures."
+    );
+    const extra = score.extras;
+    const extrasTotal = extra.wides + extra.noBalls + extra.byes + extra.legByes;
+    const fow = fallOfWickets(state.balls, innings.innings_no, state.players);
+    const fowHtml = fow.length ? fow.map(item =>
+      '<span class="fow-item">' + item.wicket + '/' + item.score + ' · ' + esc(item.batter) + ' (' + item.overs + ')</span>'
+    ).join("") : '<span class="muted">No wickets</span>';
+    return '<article class="card final-innings-card">' +
+      '<div class="final-innings-heading"><div><span class="eyebrow">INNINGS ' + innings.innings_no + '</span><h3>' +
+      esc(teamName(innings.batting_team)) + '</h3></div><strong>' + score.total + '/' + score.wickets +
+      '<small>' + score.overs + ' overs · RR ' + score.runRateText + '</small></strong></div>' +
+      '<h4>Batting</h4>' + battingTable + '<h4>Bowling</h4>' + bowlingTable +
+      '<div class="final-extras"><strong>Extras ' + extrasTotal + '</strong><span>WD ' + extra.wides +
+      ' · NB ' + extra.noBalls + ' · B ' + extra.byes + ' · LB ' + extra.legByes + '</span></div>' +
+      '<div class="fall-of-wickets"><strong>Fall of wickets</strong><div>' + fowHtml + '</div></div>' +
+      '</article>';
+  }).join("");
 }
 async function renderStandings() {
   if ((state.tournament.format || "friendly") !== "league") {
