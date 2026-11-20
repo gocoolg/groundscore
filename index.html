@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f766e">
+  <title>GroundScore — Cricket Scorer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div><div class="brand">GroundScore</div><div class="tagline">Simple cricket scoring for your weekly game</div></div>
+  <button id="newMatchBtn" class="ghost hidden">New match</button>
+</header>
+
+<main class="container">
+  <div id="configNotice" class="notice hidden"></div>
+
+  <section id="setupView" class="card">
+    <h1>Start a match</h1>
+    <p class="muted">No account required. Enter your name so every scoring update is attributed to you.</p>
+    <div class="grid two">
+      <label>Scorer name<input id="scorerName" autocomplete="name" placeholder="e.g. Gokul"></label>
+      <label>Overs<input id="overs" type="number" min="1" max="50" value="10"></label>
+    </div>
+    <div class="grid two">
+      <label>Team 1<input id="team1" placeholder="e.g. Pollachi XI"></label>
+      <label>Team 2<input id="team2" placeholder="e.g. Kottur CC"></label>
+    </div>
+    <div class="grid two">
+      <label>Team 1 players <span class="hint">comma separated</span><textarea id="players1" rows="3" placeholder="Arun, Bala, Gokul, ..."></textarea></label>
+      <label>Team 2 players <span class="hint">comma separated</span><textarea id="players2" rows="3" placeholder="Karthik, Mani, Ravi, ..."></textarea></label>
+    </div>
+    <h2>Toss</h2>
+    <div class="grid two">
+      <label>Toss winner<select id="tossWinner"><option value="">Select team</option><option value="team1">Team 1</option><option value="team2">Team 2</option></select></label>
+      <label>Decision<select id="tossDecision"><option value="">Select decision</option><option value="bat">Bat</option><option value="bowl">Bowl</option></select></label>
+    </div>
+    <button id="createMatchBtn" class="primary full">Create match</button>
+    <p id="setupError" class="error"></p>
+  </section>
+
+  <section id="scoreView" class="hidden">
+    <div class="card match-head">
+      <div><div id="matchTitle" class="match-title"></div><div id="tossText" class="muted"></div></div>
+      <div id="matchStatus" class="pill"></div>
+    </div>
+
+    <div class="scoreboard card">
+      <div><div id="inningsLabel" class="muted"></div><div id="scoreText" class="big-score">0/0</div><div id="oversText" class="muted">0.0 overs</div></div>
+      <div class="rate-box"><div class="muted">Run rate</div><strong id="runRate">0.00</strong></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><h2>Current ball</h2><span id="ballText" class="muted"></span></div>
+      <div class="grid two">
+        <label>Striker<select id="striker"></select></label>
+        <label>Non-striker<select id="nonStriker"></select></label>
+      </div>
+      <div class="grid two">
+        <label>Bowler<select id="bowler"></select></label>
+        <label>Runs off bat<select id="runs"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>6</option></select></label>
+      </div>
+      <div class="grid two">
+        <label>Extra<select id="extraType"><option value="">None</option><option value="wide">Wide (+1)</option><option value="no-ball">No-ball (+1)</option><option value="bye">Bye (+1)</option><option value="leg-bye">Leg-bye (+1)</option></select></label>
+        <label>Wicket<select id="wicket"><option value="">No wicket</option><option value="bowled">Bowled</option><option value="caught">Caught</option><option value="lbw">LBW</option><option value="run out">Run out</option><option value="stumped">Stumped</option><option value="hit wicket">Hit wicket</option></select></label>
+      </div>
+      <label id="dismissedWrap" class="hidden">Dismissed batter<select id="dismissedBatsman"></select></label>
+      <button id="addBallBtn" class="primary full">Add ball</button>
+      <p id="scoreError" class="error"></p>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><h2>Innings controls</h2><span class="muted">Scored by <span id="activeScorer"></span></span></div>
+      <div class="grid two"><button id="endInningsBtn" class="secondary">End innings</button><button id="finishMatchBtn" class="danger">Finish match</button></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><h2>Recent balls</h2><button id="refreshBtn" class="ghost small">Refresh</button></div>
+      <div id="ballsList" class="balls"></div>
+    </div>
+  </section>
+
+  <section id="summaryView" class="hidden">
+    <div class="card hero-summary"><div class="muted">Match complete</div><h1 id="resultText"></h1><div id="summaryToss" class="muted"></div></div>
+    <div class="summary-grid">
+      <div class="card"><h2>Top run-scorers</h2><div id="battingSummary"></div></div>
+      <div class="card"><h2>Top wicket-takers</h2><div id="bowlingSummary"></div></div>
+      <div class="card"><h2>Innings</h2><div id="inningsSummary"></div></div>
+      <div class="card"><h2>Notable moments</h2><div id="momentsSummary"></div></div>
+    </div>
+    <button id="summaryNewMatchBtn" class="primary full">Start another match</button>
+  </section>
+</main>
+<footer>GroundScore · Open source · No accounts</footer>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
