@@ -120,14 +120,14 @@
           <h2>Heads or tails?</h2>
           <p class="muted">Team 1 chooses one side. The coin decides which team wins the toss.</p>
         </div>
-        <div id="coinFace" class="coin-face" aria-live="polite">?</div>
+        <div id="coinFace" class="coin-face" aria-live="polite">H</div>
       </div>
       <div class="toss-call-buttons">
-        <button id="tossCallHeads" type="button" class="toss-call">HEADS</button>
-        <button id="tossCallTails" type="button" class="toss-call">TAILS</button>
+        <button id="tossCallHeads" type="button" class="toss-call selected" aria-pressed="true">HEADS</button>
+        <button id="tossCallTails" type="button" class="toss-call" aria-pressed="false">TAILS</button>
       </div>
-      <div id="tossStatus" class="toss-status">Team 1: choose heads or tails.</div>
-      <button id="flipCoinBtn" type="button" class="btn btn-primary btn-wide" disabled>Flip coin</button>
+      <div id="tossStatus" class="toss-status">Team 1 call: HEADS selected by default. Choose TAILS to switch, or flip the coin.</div>
+      <button id="flipCoinBtn" type="button" class="btn btn-primary btn-wide">Flip coin</button>
       <div id="tossDecisionSummary" class="toss-decision-summary hidden">
         <strong id="tossWinnerStatus"></strong>
         <span id="tossDecisionResult"></span>
