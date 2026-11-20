@@ -392,6 +392,7 @@ function flipCoin() {
   $("coinFace").classList.add("flipping");
   $("coinFace").textContent = result === "heads" ? "H" : "T";
   const winnerName = winnerKey === "team1" ? $("team1").value.trim() : $("team2").value.trim();
+  $("coinResultLarge").textContent = result.toUpperCase();
   $("tossStatus").textContent = result.toUpperCase() + " — " + winnerName + " won the toss.";
   $("tossWinnerStatus").textContent = winnerName + " won the toss. Choose to bat or bowl.";
   $("flipCoinBtn").classList.add("hidden");
@@ -509,7 +510,9 @@ async function loadMatch(matchId) {
   state.innings = innings;
   state.players = players;
   state.balls = balls;
-  state.lineupConfirmed = activeBalls(state.match.current_innings).length > 0;
+  const currentDeliveries = activeBalls(state.match.current_innings);
+  state.pendingBatterReview = !!currentDeliveries[currentDeliveries.length - 1]?.wicket;
+  state.lineupConfirmed = currentDeliveries.length > 0 && !state.pendingBatterReview;
   if (state.match.status === "finished") {
     renderSummary();
     showView("summaryView");
@@ -606,18 +609,23 @@ function renderScore() {
     bowlerId: $("bowler").value || ""
   };
   const current = currentBattingState(state.balls, innings.innings_no, opening);
-  // At an over boundary the engine intentionally leaves bowlerId blank until a
+  // At an over boundary the engine deliberately leaves bowlerId blank until a
   // new bowler is selected. Resolve it from the actual dropdown selection.
   if (current.needsNewBowler && opening.bowlerId &&
       opening.bowlerId !== current.previousOverBowlerId) {
     current.bowlerId = opening.bowlerId;
   }
+  const lastDelivery = activeBalls(innings.innings_no).slice(-1)[0];
+  const afterWicket = !!lastDelivery?.wicket;
+  const strikerSelection = current.strikerId || (afterWicket ? "" : opening.strikerId);
+  const nonStrikerSelection = current.nonStrikerId || (afterWicket ? "" : opening.nonStrikerId);
   state.current = current;
-  fillSelect($("striker"), batting, current.strikerId || opening.strikerId, "Select striker");
-  fillSelect($("nonStriker"), batting, current.nonStrikerId || opening.nonStrikerId, "Select non-striker");
+  fillSelect($("striker"), batting, strikerSelection, "Select striker");
+  fillSelect($("nonStriker"), batting, nonStrikerSelection, "Select non-striker");
   const availableBowlers = current.needsNewBowler ? bowling.filter(p => p.id !== current.previousOverBowlerId) : bowling;
   fillSelect($("bowler"), availableBowlers, current.bowlerId || opening.bowlerId, current.needsNewBowler ? "Choose new bowler" : "Select bowler");
   const activeBatters = [current.strikerId || $("striker").value, current.nonStrikerId || $("nonStriker").value].filter(Boolean);
+  $("coinResultLarge").textContent = state.match.toss_result ? state.match.toss_result.toUpperCase() : "TOSS";
   fillSelect($("wicketBatter"), batting.filter(p => activeBatters.includes(p.id)), "", "Choose batter");
   const dismissed = new Set(activeBalls(innings.innings_no).filter(b => b.wicket).map(b => b.dismissed_batsman_id));
   const incoming = batting.filter(p => !dismissed.has(p.id) && !activeBatters.includes(p.id));
@@ -631,6 +639,7 @@ function renderScore() {
   $("stickyStriker").textContent = playerName(current.strikerId || $("striker").value);
   $("stickyNonStriker").textContent = playerName(current.nonStrikerId || $("nonStriker").value);
   $("stickyBowler").textContent = playerName(current.bowlerId || $("bowler").value);
+  $("coinResultLarge").textContent = state.match.toss_result ? state.match.toss_result.toUpperCase() : "TOSS";
   $("ballText").textContent = current.overNumber + "." + current.ballNumber + " · " + (current.needsNewBowler ? "New over — choose bowler" : "Next delivery");
   const hasOpeningSelection = !!($("striker").value && $("nonStriker").value &&
     $("striker").value !== $("nonStriker").value && $("bowler").value);
