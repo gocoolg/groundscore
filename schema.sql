@@ -183,4 +183,8 @@ drop policy if exists balls_public on public.balls;
 create policy balls_public on public.balls for all to anon using (true) with check (true);
 
 grant usage on schema public to anon;
-grant select, insert, update, delete on public.tournaments, public.tournament_members, public.teams, public.team_players, public.matches, public.players, public.innings, public.balls to anon;
+grant select, insert, update on public.tournaments, public.tournament_members, public.teams, public.team_players, public.matches, public.players, public.innings, public.balls to anon;
+
+-- Anonymous users can score and soft-undo deliveries, but must not hard-delete data.
+revoke delete on public.tournaments, public.tournament_members, public.teams,
+  public.team_players, public.matches, public.players, public.innings, public.balls from anon;
