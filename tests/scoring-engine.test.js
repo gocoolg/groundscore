@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  buildDelivery, inningsStats, currentBattingState,
+  buildDelivery, deliveryNotation, inningsStats, currentBattingState,
   battingScorecard, bowlingScorecard
 } from "../js/scoring-engine.js";
 
@@ -164,4 +164,24 @@ test("the same player cannot be selected as striker and non-striker", () => {
   });
   assert.equal(built.ok, false);
   assert.ok(built.errors.some(message => message.includes("must be different players")));
+});
+
+test("wide with one additional run is displayed as WD+1", () => {
+  const ball = delivery({ extraType: "wide", extraRuns: 1 });
+  assert.equal(ball.total_runs, 2);
+  assert.equal(deliveryNotation(ball), "WD+1");
+});
+test("no-ball with one additional run is displayed as NB+1", () => {
+  const ball = delivery({ extraType: "no-ball", extraRuns: 1 });
+  assert.equal(ball.total_runs, 2);
+  assert.equal(deliveryNotation(ball), "NB+1");
+});
+test("no-ball accepts six additional runs and displays NB+6", () => {
+  const ball = delivery({ extraType: "no-ball", extraRuns: 6 });
+  assert.equal(ball.total_runs, 7);
+  assert.equal(deliveryNotation(ball), "NB+6");
+});
+test("wide with only the penalty is displayed as WD", () => {
+  const ball = delivery({ extraType: "wide", extraRuns: 0 });
+  assert.equal(deliveryNotation(ball), "WD");
 });
