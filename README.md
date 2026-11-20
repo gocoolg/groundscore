@@ -52,7 +52,7 @@ The current no-login mode deliberately lets the public anonymous role read/write
 
 Tournament deletion is performed server-side; the admin password is never stored in `app.js`, `config.js`, or other public browser files.
 
-1. Run [`supabase/migrations/20261120_delete_tournament_admin.sql`](supabase/migrations/20261120_delete_tournament_admin.sql) in Supabase Dashboard → SQL Editor.
+1. Run [`supabase/migrations/20261120_delete_tournament_admin.sql`](supabase/migrations/20261120_delete_tournament_admin.sql) and [`supabase/migrations/20261120_revoke_public_deletes.sql`](supabase/migrations/20261120_revoke_public_deletes.sql) in Supabase Dashboard → SQL Editor. The second migration prevents anonymous REST clients from bypassing the password-protected delete flow with direct DELETE requests.
 2. Install the Supabase CLI and sign in:
    ```bash
    supabase login
@@ -68,7 +68,7 @@ Tournament deletion is performed server-side; the admin password is never stored
    supabase functions deploy delete-tournament --no-verify-jwt
    ```
 
-The app sends the password in the HTTPS request to the Edge Function. The function checks it server-side, then calls a restricted database function using the service-role credential supplied by Supabase. It deletes the tournament's matches first (including innings, players and deliveries), then deletes the tournament (including members, teams and saved squads). The UI also requires the exact tournament name as a second confirmation.
+The app sends the password in an HTTPS request to the Edge Function. The function checks it server-side, then calls a restricted database function using the service-role credential supplied by Supabase. Anonymous browser clients retain select/insert/update for normal scoring and soft-undo, but no longer have hard-delete privileges. It deletes the tournament's matches first (including innings, players and deliveries), then deletes the tournament (including members, teams and saved squads). The UI also requires the exact tournament name as a second confirmation.
 
 The Edge Function is not deployed by GitHub Pages. It must be deployed separately using the CLI commands above. Do not put the service-role/secret key or the delete password in GitHub source files.
 
