@@ -16,7 +16,8 @@ const configured = !!(cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY);
 const $ = id => document.getElementById(id);
 const state = {
   tournament: null, match: null, innings: [], balls: [], players: [], members: [],
-  teams: [], teamPlayers: {}, poll: null, current: null, saving: false,
+  teams: [], teamPlayers: {}, playerDirectory: [], playerDirectoryAvailable: false,
+  poll: null, current: null, saving: false,
   selectedScoreTab: "scorer", selectedTournamentTab: "matches",
   lineupConfirmed: false, pendingBatterReview: false, milestones: new Set(), pendingKey: null,
   toss: null, squadDraft: { team1: [], team2: [] }, teamCreationDraft: [],
@@ -166,6 +167,55 @@ async function api(path, options = {}) {
   }
   return body ? JSON.parse(body) : [];
 }
+function renderPlayerDirectorySuggestions() {
+  const list = $("playerDirectoryList");
+  if (!list) return;
+  list.innerHTML = state.playerDirectory
+    .map(name => '<option value="' + esc(name) + '"></option>')
+    .join("");
+}
+async function loadPlayerDirectory() {
+  try {
+    const rows = await api("player_directory?select=name&order=name.asc&limit=1000");
+    state.playerDirectory = [...new Set(rows.map(row => String(row.name || "").trim()).filter(Boolean))];
+    state.playerDirectoryAvailable = true;
+    renderPlayerDirectorySuggestions();
+    return true;
+  } catch (error) {
+    // The app remains usable before the player-directory migration is installed.
+    state.playerDirectoryAvailable = false;
+    state.playerDirectory = [];
+    renderPlayerDirectorySuggestions();
+    console.info("Shared player suggestions are unavailable until the player-directory migration is applied.", error);
+    return false;
+  }
+}
+async function savePlayerDirectoryNames(names) {
+  const unique = new Map();
+  (names || []).forEach(value => {
+    const name = String(value || "").trim().replace(/\s+/g, " ");
+    const normalized = name.toLocaleLowerCase();
+    if (name && name.length <= 80 && !unique.has(normalized)) unique.set(normalized, name);
+  });
+  const cleanNames = [...unique.values()];
+  if (!cleanNames.length) return true;
+  try {
+    await api("rpc/register_player_directory_names", {
+      method: "POST",
+      prefer: "return=minimal",
+      body: JSON.stringify({ p_names: cleanNames })
+    });
+    const merged = new Map(state.playerDirectory.map(name => [name.toLocaleLowerCase(), name]));
+    cleanNames.forEach(name => { if (!merged.has(name.toLocaleLowerCase())) merged.set(name.toLocaleLowerCase(), name); });
+    state.playerDirectory = [...merged.values()].sort((a, b) => a.localeCompare(b));
+    state.playerDirectoryAvailable = true;
+    renderPlayerDirectorySuggestions();
+    return true;
+  } catch (error) {
+    console.warn("Could not save player names to the shared directory.", error);
+    return false;
+  }
+}
 function bind(id, event, callback) {
   const el = $(id);
   if (el) el.addEventListener(event, callback);
@@ -207,6 +257,7 @@ async function init() {
     showView("homeView");
     return;
   }
+  await loadPlayerDirectory();
   const sharedMatch = new URLSearchParams(window.location.search).get("match");
   if (sharedMatch) {
     try { await loadMatch(sharedMatch); return; }
@@ -471,12 +522,13 @@ async function createTeam() {
       method: "POST",
       body: JSON.stringify(players.map(player => ({ team_id: team.id, name: player })))
     });
+    const directorySaved = await savePlayerDirectoryNames(players);
     $("newTeamName").value = "";
     $("newTeamPlayerInput").value = "";
     setSquadNames("teamCreation", []);
     await refreshTournament();
     setActiveTournamentTab("teams");
-    toast("Team and squad saved");
+    toast(directorySaved ? "Team and squad saved" : "Team and squad saved, but shared player suggestions need the player-directory SQL migration.");
   } catch (error) { $("teamCreateError").textContent = error.message; }
 }
 async function findOrCreateTeam(name) {
@@ -637,6 +689,7 @@ async function createMatch() {
     }
     await ensureTeamSquad(team1.id, squad1);
     await ensureTeamSquad(team2.id, squad2);
+    const playerDirectorySaved = await savePlayerDirectoryNames([...squad1, ...squad2]);
     const firstBatKey = decision === "bat" ? tossWinner : (tossWinner === "team1" ? "team2" : "team1");
     const firstBatId = firstBatKey === "team1" ? team1.id : team2.id;
     const scheduledValue = $("scheduledAt").value;
@@ -681,7 +734,7 @@ async function createMatch() {
     state.pendingBatterReview = false;
     state.selectedScoreTab = "scorer";
     await loadMatch(match.id);
-    toast("Match ready. Confirm the opening players.");
+    toast(playerDirectorySaved ? "Match ready. Confirm the opening players." : "Match ready. Shared player suggestions need the player-directory SQL migration.");
   } catch (error) {
     const message = String(error?.message || error);
     if (/toss_call|toss_result|toss_tossed_at|schema cache|PGRST204/i.test(message)) {
