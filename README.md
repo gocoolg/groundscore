@@ -4,6 +4,7 @@ A mobile-first cricket tournament and scoring web app. Static HTML/CSS/JavaScrip
 
 ## Current experience
 - Tournament home, create/join flow, member roster and saved teams/squads.
+- Shared player directory with autocomplete across tournaments; existing saved squads and match players are backfilled.
 - Tournament tabs for matches, teams, standings and members.
 - Match setup: overs, playing XI, venue, scheduled time and a random coin toss (Team 1 calls heads/tails; the winning team chooses bat or bowl).
 - Sticky live scoreboard with current batters, bowler, CRR, RRR and chase target.
@@ -71,6 +72,10 @@ Tournament deletion is performed server-side; the admin password is never stored
 The app sends the password in an HTTPS request to the Edge Function. The function checks it server-side, then calls a restricted database function using the service-role credential supplied by Supabase. Anonymous browser clients retain select/insert/update for normal scoring and soft-undo, but no longer have hard-delete privileges. It deletes the tournament's matches first (including innings, players and deliveries), then deletes the tournament (including members, teams and saved squads). The UI also requires the exact tournament name as a second confirmation.
 
 The Edge Function is not deployed by GitHub Pages. It must be deployed separately using the CLI commands above. Do not put the service-role/secret key or the delete password in GitHub source files.
+
+## Shared player directory
+
+Run [`supabase/migrations/20261123_player_directory.sql`](supabase/migrations/20261123_player_directory.sql) in Supabase Dashboard → SQL Editor. This creates a reusable player-name directory, backfills names from saved squads and previous match lineups, and exposes read-only suggestions to the app. Team creation and match setup register new player names automatically. Names remain available across tournaments even when a team or tournament is deleted.
 
 ## Clear test data
 
