@@ -21,6 +21,7 @@
 
 <main class="app-shell">
   <div id="configNotice" class="notice hidden"></div>
+  <datalist id="playerDirectoryList"></datalist>
 
   <section id="homeView" class="view">
     <div class="hero">
@@ -85,7 +86,7 @@
         <label>Team name<input id="newTeamName" placeholder="e.g. Pollachi XI" maxlength="60"></label>
         <div class="squad-field">
           <div class="squad-label">Squad members</div>
-          <div class="chip-entry"><input id="newTeamPlayerInput" type="text" autocomplete="off" placeholder="Add player name and press Enter"><button id="addTeamPlayerBtn" type="button" class="chip-add" aria-label="Add squad player">＋</button></div>
+          <div class="chip-entry"><input id="newTeamPlayerInput" list="playerDirectoryList" type="text" autocomplete="off" placeholder="Add player name and press Enter"><button id="addTeamPlayerBtn" type="button" class="chip-add" aria-label="Add squad player">＋</button></div>
           <div id="newTeamPlayersChips" class="squad-chips" aria-live="polite"></div>
           <textarea id="newTeamPlayers" class="hidden" tabindex="-1" aria-hidden="true"></textarea>
         </div>
@@ -119,14 +120,14 @@
     <label>Team 1<input id="team1" list="teamNamesList" maxlength="60" placeholder="Choose or enter team"></label>
     <div class="squad-field">
       <div class="squad-label">Team 1 playing squad</div>
-      <div class="chip-entry"><input id="players1Input" type="text" autocomplete="off" placeholder="Type a player name and press Enter"><button id="addPlayers1Btn" type="button" class="chip-add" aria-label="Add Team 1 player">＋</button></div>
+      <div class="chip-entry"><input id="players1Input" list="playerDirectoryList" type="text" autocomplete="off" placeholder="Type a player name and press Enter"><button id="addPlayers1Btn" type="button" class="chip-add" aria-label="Add Team 1 player">＋</button></div>
       <div id="players1Chips" class="squad-chips" aria-live="polite"></div>
       <textarea id="players1" class="hidden" tabindex="-1" aria-hidden="true"></textarea>
     </div>
     <label>Team 2<input id="team2" list="teamNamesList" maxlength="60" placeholder="Choose or enter team"></label>
     <div class="squad-field">
       <div class="squad-label">Team 2 playing squad</div>
-      <div class="chip-entry"><input id="players2Input" type="text" autocomplete="off" placeholder="Type a player name and press Enter"><button id="addPlayers2Btn" type="button" class="chip-add" aria-label="Add Team 2 player">＋</button></div>
+      <div class="chip-entry"><input id="players2Input" list="playerDirectoryList" type="text" autocomplete="off" placeholder="Type a player name and press Enter"><button id="addPlayers2Btn" type="button" class="chip-add" aria-label="Add Team 2 player">＋</button></div>
       <div id="players2Chips" class="squad-chips" aria-live="polite"></div>
       <textarea id="players2" class="hidden" tabindex="-1" aria-hidden="true"></textarea>
     </div>
