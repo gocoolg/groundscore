@@ -73,7 +73,24 @@ The app sends the password in an HTTPS request to the Edge Function. The functio
 
 The Edge Function is not deployed by GitHub Pages. It must be deployed separately using the CLI commands above. Do not put the service-role/secret key or the delete password in GitHub source files.
 
+## Shared scorer directory
+
+Run [`supabase/migrations/20261124_scorer_directory.sql`](supabase/migrations/20261124_scorer_directory.sql) in Supabase Dashboard → SQL Editor. Match setup uses a free-text scorer field with suggestions drawn from both current team squads, the shared player directory and previously used scorers. Any person can be entered as scorer; the selected name is stored on `matches.created_by` and registered separately in `scorer_directory` for future suggestions. Existing scorer names are backfilled from previous matches.
+
 ## Shared player directory
+
+Run [`supabase/migrations/20261123_player_directory.sql`](supabase/migrations/20261123_player_directory.sql) in Supabase Dashboard → SQL Editor. This creates a reusable player-name directory, backfills names from saved squads and previous match lineups, and exposes read-only suggestions to the app. Team creation and match setup register new player names automatically. Names remain available across tournaments even when a team or tournament is deleted.
+
+## Clear test data
+
+Use [`supabase/reset_test_data.sql`](supabase/reset_test_data.sql) to inspect the current database counts and list tournaments with their match/delivery counts. The file is read-only by default. It includes a clearly commented reset block that deletes **all** matches and tournaments if uncommented. Only run that block if the Supabase project contains disposable test data exclusively; it also removes dependent scorecards, deliveries, players, memberships, teams and squads. Back up anything that should be retained first.
+
+## License
+MIT — see LICENSE.
+
+### Coin toss database fix
+If match creation reports that `toss_call` or `toss_result` is missing from the schema cache, run [`supabase/add_coin_toss_columns.sql`](supabase/add_coin_toss_columns.sql) in Supabase SQL Editor. This migration adds only the coin-toss fields and reloads the PostgREST schema. It is safe to run repeatedly and preserves existing match data.
+
 
 Run [`supabase/migrations/20261123_player_directory.sql`](supabase/migrations/20261123_player_directory.sql) in Supabase Dashboard → SQL Editor. This creates a reusable player-name directory, backfills names from saved squads and previous match lineups, and exposes read-only suggestions to the app. Team creation and match setup register new player names automatically. Names remain available across tournaments even when a team or tournament is deleted.
 
