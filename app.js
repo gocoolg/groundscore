@@ -17,6 +17,7 @@ const $ = id => document.getElementById(id);
 const state = {
   tournament: null, match: null, innings: [], balls: [], players: [], members: [],
   teams: [], teamPlayers: {}, playerDirectory: [], playerDirectoryAvailable: false,
+  scorerDirectory: [], scorerDirectoryAvailable: false,
   poll: null, current: null, saving: false,
   selectedScoreTab: "scorer", selectedTournamentTab: "matches",
   lineupConfirmed: false, pendingBatterReview: false, milestones: new Set(), pendingKey: null,
@@ -72,6 +73,7 @@ function setSquadNames(key, names) {
   if (key === "teamCreation") state.teamCreationDraft = unique;
   else state.squadDraft[key] = unique;
   updateSquadField(key);
+  renderScorerSuggestions();
 }
 function addSquadEntry(key) {
   const field = SQUAD_FIELDS[key];
@@ -216,6 +218,64 @@ async function savePlayerDirectoryNames(names) {
     return false;
   }
 }
+
+function renderScorerSuggestions() {
+  const list = $("scorerDirectoryList");
+  if (!list) return;
+  const names = [
+    ...state.scorerDirectory,
+    ...state.playerDirectory,
+    ...Object.values(state.teamPlayers).flat().map(player => player.name),
+    ...state.squadDraft.team1,
+    ...state.squadDraft.team2,
+    ...state.teamCreationDraft,
+    ...state.players.map(player => player.name)
+  ];
+  const unique = new Map();
+  names.forEach(value => {
+    const name = String(value || "").trim();
+    if (name && !unique.has(name.toLocaleLowerCase())) unique.set(name.toLocaleLowerCase(), name);
+  });
+  list.innerHTML = [...unique.values()].sort((a, b) => a.localeCompare(b))
+    .map(name => '<option value="' + esc(name) + '"></option>')
+    .join("");
+}
+async function loadScorerDirectory() {
+  try {
+    const rows = await api("scorer_directory?select=name&order=name.asc&limit=1000");
+    state.scorerDirectory = [...new Set(rows.map(row => String(row.name || "").trim()).filter(Boolean))];
+    state.scorerDirectoryAvailable = true;
+    renderScorerSuggestions();
+    return true;
+  } catch (error) {
+    // Scorer entry still accepts free text if the database migration is pending.
+    state.scorerDirectoryAvailable = false;
+    state.scorerDirectory = [];
+    renderScorerSuggestions();
+    console.info("Saved scorer suggestions are unavailable until the scorer-directory migration is applied.", error);
+    return false;
+  }
+}
+async function saveScorerDirectoryName(value) {
+  const name = String(value || "").trim().replace(/\\s+/g, " ");
+  if (!name || name.length > 80) return false;
+  try {
+    await api("rpc/register_scorer_directory_name", {
+      method: "POST",
+      prefer: "return=minimal",
+      body: JSON.stringify({ p_name: name })
+    });
+    const merged = new Map(state.scorerDirectory.map(existing => [existing.toLocaleLowerCase(), existing]));
+    if (!merged.has(name.toLocaleLowerCase())) merged.set(name.toLocaleLowerCase(), name);
+    state.scorerDirectory = [...merged.values()].sort((a, b) => a.localeCompare(b));
+    state.scorerDirectoryAvailable = true;
+    renderScorerSuggestions();
+    return true;
+  } catch (error) {
+    console.warn("Could not save scorer name to the shared directory.", error);
+    return false;
+  }
+}
 function bind(id, event, callback) {
   const el = $(id);
   if (el) el.addEventListener(event, callback);
@@ -258,6 +318,7 @@ async function init() {
     return;
   }
   await loadPlayerDirectory();
+  await loadScorerDirectory();
   const sharedMatch = new URLSearchParams(window.location.search).get("match");
   if (sharedMatch) {
     try { await loadMatch(sharedMatch); return; }
@@ -577,11 +638,9 @@ async function startMatchSetup() {
   setSquadNames("teamCreation", []);
   $("players1Input").value = ""; $("players2Input").value = "";
   $("newTeamPlayerInput").value = "";
-  $("matchScorer").innerHTML = '<option value="">Choose your name</option>' + state.members.map(member =>
-    '<option value="' + esc(member.name) + '">' + esc(member.name) + "</option>"
-  ).join("");
-  const saved = localScorer() || localStorage.getItem("groundscore_member");
-  if (saved) $("matchScorer").value = saved;
+  const saved = localScorer() || localStorage.getItem("groundscore_member") || "";
+  $("matchScorer").value = saved;
+  renderScorerSuggestions();
   $("team1").value = ""; $("team2").value = "";
   $("players1").value = ""; $("players2").value = "";
   $("setupError").textContent = "";
@@ -712,6 +771,7 @@ async function createMatch() {
         status: "live", current_innings: 1, created_by: scorer
       })
     }))[0];
+    const scorerDirectorySaved = await saveScorerDirectoryName(scorer);
     const matchPlayers = [
       ...squad1.map(name => ({ match_id: match.id, tournament_id: state.tournament.id, team_id: team1.id, team: "team1", name })),
       ...squad2.map(name => ({ match_id: match.id, tournament_id: state.tournament.id, team_id: team2.id, team: "team2", name }))
@@ -734,7 +794,9 @@ async function createMatch() {
     state.pendingBatterReview = false;
     state.selectedScoreTab = "scorer";
     await loadMatch(match.id);
-    toast(playerDirectorySaved ? "Match ready. Confirm the opening players." : "Match ready. Shared player suggestions need the player-directory SQL migration.");
+    toast(playerDirectorySaved && scorerDirectorySaved
+      ? "Match ready. Confirm the opening players."
+      : "Match ready. Scorer/player suggestions may need their Supabase directory migration.");
   } catch (error) {
     const message = String(error?.message || error);
     if (/toss_call|toss_result|toss_tossed_at|schema cache|PGRST204/i.test(message)) {
