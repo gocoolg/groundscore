@@ -1057,6 +1057,7 @@ function renderScore() {
   $("lineupStatusDot").classList.toggle("confirmed", state.lineupConfirmed);
   $("lineupStatusDot").classList.toggle("needs-attention", needsBatterConfirm || (!state.lineupConfirmed && hasOpeningSelection));
   $("confirmLineupBtn").disabled = !scorer || !hasOpeningSelection || closed || state.saving;
+  $("scoreSavingIndicator").classList.toggle("hidden", !state.saving);
   $("bowler").classList.toggle("needs-attention", !!(current.needsNewBowler && !current.bowlerId));
   $("striker").classList.toggle("needs-attention", needsBatterConfirm);
   $("nonStriker").classList.toggle("needs-attention", needsBatterConfirm);
@@ -1127,7 +1128,7 @@ function makeIdempotencyKey() {
   }
   return state.pendingKey;
 }
-async function submitDelivery(input) {
+async function submitDelivery(input, sourceButton = null) {
   if (state.saving) return;
   const innings = currentInnings();
   if (!innings) { toast("No active innings"); return; }
@@ -1160,6 +1161,12 @@ async function submitDelivery(input) {
   }
   const ball = { ...built.ball, idempotency_key: makeIdempotencyKey() };
   state.saving = true;
+  const saveStartedAt = Date.now();
+  if (sourceButton) {
+    sourceButton.classList.add("score-saving");
+    sourceButton.setAttribute("aria-busy", "true");
+  }
+  renderScore();
   document.querySelectorAll("[data-quick-run],#openExtrasBtn,#openWicketBtn,#saveExtrasBtn,#saveWicketBtn").forEach(button => button.disabled = true);
   try {
     const before = inningsStats(state.balls, innings.innings_no, state.match.overs);
@@ -1190,12 +1197,19 @@ async function submitDelivery(input) {
     $("scoreError").textContent = error.message;
     toast("Delivery not saved: " + error.message);
   } finally {
+    // Keep the feedback visible long enough to register even on a fast connection.
+    const feedbackTime = Math.max(0, 240 - (Date.now() - saveStartedAt));
+    if (feedbackTime) await new Promise(resolve => setTimeout(resolve, feedbackTime));
     state.saving = false;
+    if (sourceButton) {
+      sourceButton.classList.remove("score-saving");
+      sourceButton.removeAttribute("aria-busy");
+    }
     renderScore();
   }
 }
-function quickRun(runs) {
-  submitDelivery({ batRuns: Number(runs) });
+function quickRun(runs, sourceButton) {
+  submitDelivery({ batRuns: Number(runs) }, sourceButton);
 }
 function openSheet(id) {
   $(id).classList.remove("hidden");
@@ -1226,7 +1240,7 @@ function saveExtras() {
     extraType: $("extraKind").value,
     batRuns: Number($("extraBatRuns").value),
     extraRuns: Number($("extraRunCount").value)
-  });
+  }, $("saveExtrasBtn"));
 }
 function openWicket() {
   const innings = currentInnings();
@@ -1252,7 +1266,7 @@ function saveWicket() {
     incomingBatterId: $("incomingBatter").value,
     batRuns: wicket === "run out" ? Number($("runOutRuns").value) : 0,
     crossedBeforeWicket: $("crossedBeforeWicket").checked
-  });
+  }, $("saveWicketBtn"));
 }
 async function undoBall() {
   if (!localScorer()) { toast("Join the tournament before correcting scores"); return; }
@@ -1677,7 +1691,7 @@ function attachEvents() {
     button.addEventListener("click", () => setActiveTournamentTab(button.dataset.tournamentTab))
   );
   document.querySelectorAll("[data-quick-run]").forEach(button =>
-    button.addEventListener("click", () => quickRun(button.dataset.quickRun))
+    button.addEventListener("click", () => quickRun(button.dataset.quickRun, button))
   );
   document.querySelectorAll("[data-close-sheet]").forEach(button =>
     button.addEventListener("click", closeSheets)
