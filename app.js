@@ -670,6 +670,7 @@ async function startMatchSetup(options = {}) {
       call: null, result: null, winnerKey: rematch.winnerKey,
       decision: null, tossedAt: null
     };
+    $("tossSectionTitle").textContent = "Next match decision";
     $("tossKicker").textContent = "PREVIOUS MATCH WINNER";
     $("tossTitle").textContent = "Choose to bat or bowl";
     $("tossDescription").textContent = rematch.winnerName + " won the previous match and gets first choice for this rematch.";
@@ -693,6 +694,7 @@ function resetTossUI() {
   document.body.classList.remove("sheet-open");
   $("matchSetupHeading").textContent = "Set the game up";
   $("matchSetupDescription").textContent = "Choose teams, playing squads and toss. Then confirm the opening players at the ground.";
+  $("tossSectionTitle").textContent = "Coin toss";
   $("tossKicker").textContent = "TEAM 1 CALLS";
   $("tossTitle").textContent = "Heads or tails?";
   $("tossDescription").textContent = "Team 1 chooses one side. The coin decides which team wins the toss.";
@@ -1623,6 +1625,8 @@ function attachEvents() {
   bind("flipCoinBtn","click",flipCoin);
   bind("chooseBatFirstBtn","click",() => chooseTossDecision("bat"));
   bind("chooseBowlFirstBtn","click",() => chooseTossDecision("bowl"));
+  bind("rematchBatFirstBtn","click",() => chooseTossDecision("bat"));
+  bind("rematchBowlFirstBtn","click",() => chooseTossDecision("bowl"));
   bind("confirmLineupBtn","click",confirmLineup);
   bind("openExtrasBtn","click",openExtras);
   bind("openWicketBtn","click",openWicket);
