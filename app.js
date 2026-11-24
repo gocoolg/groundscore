@@ -17,7 +17,7 @@ const $ = id => document.getElementById(id);
 const state = {
   tournament: null, match: null, innings: [], balls: [], players: [], members: [],
   teams: [], teamPlayers: {}, playerDirectory: [], playerDirectoryAvailable: false,
-  scorerDirectory: [], scorerDirectoryAvailable: false,
+  scorerDirectory: [], scorerDirectoryAvailable: false, rematchContext: null,
   poll: null, current: null, saving: false,
   selectedScoreTab: "scorer", selectedTournamentTab: "matches",
   lineupConfirmed: false, pendingBatterReview: false, milestones: new Set(), pendingKey: null,
@@ -625,7 +625,9 @@ async function onTeamNameChange(inputId, squadKey) {
   setSquadNames(squadKey, squad.map(player => player.name));
 }
 
-async function startMatchSetup() {
+async function startMatchSetup(options = {}) {
+  const rematch = options.rematch || null;
+  state.rematchContext = null;
   state.members = await api("tournament_members?tournament_id=eq." + state.tournament.id + "&select=*&order=name.asc");
   state.teams = await api("teams?tournament_id=eq." + state.tournament.id + "&select=*&order=name.asc");
   state.teamPlayers = {};
@@ -642,9 +644,46 @@ async function startMatchSetup() {
   $("matchScorer").value = saved;
   renderScorerSuggestions();
   $("team1").value = ""; $("team2").value = "";
+  $("team1").disabled = false; $("team2").disabled = false;
   $("players1").value = ""; $("players2").value = "";
+  $("overs").value = 10;
+  $("playersPerTeam").value = 11;
+  $("roundName").value = "";
+  $("scheduledAt").value = "";
   $("setupError").textContent = "";
   resetTossUI();
+
+  if (rematch) {
+    state.rematchContext = rematch;
+    $("matchSetupHeading").textContent = "Start the next match";
+    $("matchSetupDescription").textContent = "The teams and playing squads are carried over from the previous scorecard.";
+    $("team1").value = rematch.match.team1;
+    $("team2").value = rematch.match.team2;
+    $("team1").disabled = true;
+    $("team2").disabled = true;
+    setSquadNames("team1", rematch.squads.team1);
+    setSquadNames("team2", rematch.squads.team2);
+    $("overs").value = Number(rematch.match.overs || 10);
+    $("playersPerTeam").value = Number(rematch.match.players_per_team || rematch.squads.team1.length || 11);
+    $("roundName").value = "Rematch";
+    state.toss = {
+      call: null, result: null, winnerKey: rematch.winnerKey,
+      decision: null, tossedAt: null
+    };
+    $("tossKicker").textContent = "PREVIOUS MATCH WINNER";
+    $("tossTitle").textContent = "Choose to bat or bowl";
+    $("tossDescription").textContent = rematch.winnerName + " won the previous match and gets first choice for this rematch.";
+    $("coinTossControls").classList.add("hidden");
+    $("rematchChoiceControls").classList.remove("hidden");
+    $("coinFace").classList.add("hidden");
+    $("rematchWinnerPrompt").textContent = rematch.winnerName + " won the previous match. Choose their decision:";
+    $("tossStatus").textContent = rematch.winnerName + " will choose whether to bat or bowl first.";
+    $("tossWinnerStatus").textContent = rematch.winnerName + " won the previous match.";
+    $("tossDecisionSummary").classList.add("hidden");
+    $("createMatchBtn").disabled = true;
+    $("createMatchBtn").textContent = "Create rematch & go to scorer";
+  }
+  renderScorerSuggestions();
   showView("matchSetupView");
 }
 function resetTossUI() {
@@ -652,8 +691,18 @@ function resetTossUI() {
   state.toss = { call: "heads", result: null, winnerKey: null, decision: null, tossedAt: null };
   $("tossDecisionSheet").classList.add("hidden");
   document.body.classList.remove("sheet-open");
+  $("matchSetupHeading").textContent = "Set the game up";
+  $("matchSetupDescription").textContent = "Choose teams, playing squads and toss. Then confirm the opening players at the ground.";
+  $("tossKicker").textContent = "TEAM 1 CALLS";
+  $("tossTitle").textContent = "Heads or tails?";
+  $("tossDescription").textContent = "Team 1 chooses one side. The coin decides which team wins the toss.";
+  $("coinTossControls").classList.remove("hidden");
+  $("rematchChoiceControls").classList.add("hidden");
+  $("coinFace").classList.remove("hidden");
   $("tossCallHeads").classList.add("selected");
   $("tossCallTails").classList.remove("selected");
+  $("rematchBatFirstBtn").classList.remove("selected");
+  $("rematchBowlFirstBtn").classList.remove("selected");
   $("tossStatus").textContent = "Team 1 call: HEADS selected by default. Choose TAILS to switch, or flip the coin.";
   $("coinFace").textContent = "H";
   $("coinFace").classList.remove("flipping");
@@ -663,9 +712,10 @@ function resetTossUI() {
   $("tossDecisionSummary").classList.add("hidden");
   $("tossDecisionResult").textContent = "";
   $("createMatchBtn").disabled = true;
+  $("createMatchBtn").textContent = "Create match & go to scorer";
 }
 function chooseTossCall(call) {
-  if (state.toss?.result || !["heads", "tails"].includes(call)) return;
+  if (state.rematchContext || state.toss?.result || !["heads", "tails"].includes(call)) return;
   state.toss = { call, result: null, winnerKey: null, decision: null, tossedAt: null };
   $("tossCallHeads").classList.toggle("selected", call === "heads");
   $("tossCallTails").classList.toggle("selected", call === "tails");
@@ -677,6 +727,7 @@ function chooseTossCall(call) {
   $("flipCoinBtn").classList.remove("hidden");
 }
 function flipCoin() {
+  if (state.rematchContext) return;
   if (!state.toss?.call || state.toss.result) {
     toast("Choose heads or tails before flipping.");
     return;
@@ -709,11 +760,19 @@ function flipCoin() {
   document.body.classList.add("sheet-open");
 }
 function chooseTossDecision(decision) {
-  if (!state.toss?.winnerKey || !state.toss?.result) return;
+  if (!state.toss?.winnerKey || (!state.toss?.result && !state.rematchContext)) return;
+  if (!["bat", "bowl"].includes(decision)) return;
   state.toss.decision = decision;
   const winnerName = state.toss.winnerKey === "team1" ? $("team1").value.trim() : $("team2").value.trim();
-  $("tossStatus").textContent = "Toss complete: " + winnerName + " won and chose to " + decision + " first.";
-  $("tossWinnerStatus").textContent = winnerName + " won · " + state.toss.result.toUpperCase() + " · chose to " + decision.toUpperCase();
+  if (state.rematchContext) {
+    $("tossStatus").textContent = winnerName + " won the previous match and chose to " + decision + " first.";
+    $("tossWinnerStatus").textContent = winnerName + " has the choice.";
+    $("rematchBatFirstBtn").classList.toggle("selected", decision === "bat");
+    $("rematchBowlFirstBtn").classList.toggle("selected", decision === "bowl");
+  } else {
+    $("tossStatus").textContent = "Toss complete: " + winnerName + " won and chose to " + decision + " first.";
+    $("tossWinnerStatus").textContent = winnerName + " won · " + state.toss.result.toUpperCase() + " · chose to " + decision.toUpperCase();
+  }
   $("tossDecisionSummary").classList.remove("hidden");
   $("tossDecisionResult").textContent = winnerName + " elected to " + decision + " first.";
   $("createMatchBtn").disabled = false;
@@ -1392,8 +1451,19 @@ function renderMatchDetails() {
 function renderSummary() {
   const result = matchResult(state.innings, state.balls, state.players, state.match);
   $("resultText").textContent = result.text;
-  $("summaryToss").textContent = "Toss: " + state.match.toss_winner + " chose to " + state.match.toss_decision +
+  const previousWinnerChoice = String(state.match.round_name || "").toLowerCase().startsWith("rematch");
+  $("summaryToss").textContent = (previousWinnerChoice
+    ? state.match.toss_winner + " won the previous match and chose to " + state.match.toss_decision
+    : "Toss: " + state.match.toss_winner + " chose to " + state.match.toss_decision) +
     (state.tournament ? " · " + state.tournament.name : "");
+  const rematchCta = $("rematchCta");
+  const canRematch = !!(state.tournament?.id && result.winner && state.match.team1 && state.match.team2);
+  rematchCta.classList.toggle("hidden", !canRematch);
+  if (canRematch) {
+    const winnerName = result.winner === "team1" ? state.match.team1 : state.match.team2;
+    $("rematchDescription").textContent = winnerName + " won this match and gets to choose bat or bowl first in the next match.";
+    $("startRematchBtn").textContent = "Start next match · " + state.match.team1 + " vs " + state.match.team2;
+  }
   const battingTotals = {};
   state.players.forEach(player => {
     const rows = state.balls.filter(b => !b.voided_at && b.striker_id === player.id);
@@ -1426,6 +1496,41 @@ function renderSummary() {
   $("momentsSummary").innerHTML = moments.slice(0,12).map(x => '<div class="row"><span>' + esc(x) + "</span></div>").join("") ||
     '<div class="empty">No notable moments recorded.</div>';
   renderFinalScorecard();
+}
+async function startNextMatchWithSameTeams() {
+  if (!state.match || !state.tournament?.id) {
+    toast("A tournament match is required to start a rematch.");
+    return;
+  }
+  const result = matchResult(state.innings, state.balls, state.players, state.match);
+  if (!result.winner) {
+    toast("This match has no winner. Start a regular match from the tournament instead.");
+    return;
+  }
+  const sourceMatch = { ...state.match };
+  const winnerName = result.winner === "team1" ? sourceMatch.team1 : sourceMatch.team2;
+  const squads = {
+    team1: state.players.filter(player => player.team === "team1").map(player => player.name),
+    team2: state.players.filter(player => player.team === "team2").map(player => player.name)
+  };
+  if (!squads.team1.length && sourceMatch.team1_id) {
+    squads.team1 = (await api("team_players?team_id=eq." + sourceMatch.team1_id + "&select=*&order=name.asc")).map(player => player.name);
+  }
+  if (!squads.team2.length && sourceMatch.team2_id) {
+    squads.team2 = (await api("team_players?team_id=eq." + sourceMatch.team2_id + "&select=*&order=name.asc")).map(player => player.name);
+  }
+  if (!squads.team1.length || !squads.team2.length) {
+    toast("The previous playing squads could not be loaded. Start a regular match and select the squads.");
+    return;
+  }
+  await startMatchSetup({
+    rematch: {
+      match: sourceMatch,
+      winnerKey: result.winner,
+      winnerName,
+      squads
+    }
+  });
 }
 function renderFinalScorecard() {
   $("finalScorecard").innerHTML = state.innings.map(innings => {
@@ -1530,6 +1635,7 @@ function attachEvents() {
   bind("refreshBtn","click",() => withLoader("Refreshing scorecard…", () => loadMatch(state.match.id)).catch(showError));
   bind("backToTournamentBtn","click",() => withLoader("Opening tournament…", backToTournament).catch(showError));
   bind("summaryTournamentBtn","click",() => withLoader("Opening tournament…", backToTournament).catch(showError));
+  bind("startRematchBtn","click",() => withLoader("Preparing the rematch…", startNextMatchWithSameTeams).catch(showError));
   bind("homeBtn","click",() => withLoader("Returning home…", loadHome).catch(showError));
   bind("brandHomeBtn","click",() => withLoader("Returning home…", loadHome).catch(showError));
   bind("milestoneClose","click",() => $("milestoneOverlay").classList.add("hidden"));
