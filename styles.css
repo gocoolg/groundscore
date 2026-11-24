@@ -477,3 +477,24 @@ body.sheet-open{overflow:hidden}
   .rematch-cta{align-items:stretch;flex-direction:column;gap:12px;padding:13px}
   .rematch-cta .btn{width:100%}
 }
+
+
+/* Inline scoring feedback: keep the scorer responsive without a page overlay. */
+.score-saving-indicator{
+  display:flex;align-items:center;gap:7px;min-height:23px;margin:-2px 0 7px;
+  color:#08786f;font-size:9px;font-weight:900;letter-spacing:.2px
+}
+.score-saving-spinner{
+  display:inline-block;width:13px;height:13px;flex:0 0 13px;border:2px solid #bfe2d8;
+  border-top-color:#0c9285;border-radius:50%;animation:scoreSavingSpin .65s linear infinite
+}
+.score-saving{
+  position:relative;pointer-events:none
+}
+.score-saving::after{
+  content:"";position:absolute;z-index:2;left:50%;top:50%;width:15px;height:15px;
+  margin:-8.5px 0 0 -8.5px;border:2px solid currentColor;border-top-color:transparent;
+  border-radius:50%;animation:scoreSavingSpin .65s linear infinite
+}
+.score-saving>*{opacity:.22}
+@keyframes scoreSavingSpin{to{transform:rotate(360deg)}}
