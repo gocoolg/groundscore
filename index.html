@@ -22,6 +22,7 @@
 <main class="app-shell">
   <div id="configNotice" class="notice hidden"></div>
   <datalist id="playerDirectoryList"></datalist>
+  <datalist id="scorerDirectoryList"></datalist>
 
   <section id="homeView" class="view">
     <div class="hero">
@@ -112,7 +113,8 @@
   <section id="matchSetupView" class="view card-page hidden">
     <button id="matchSetupBackBtn" class="back-link">← Tournament</button>
     <div class="eyebrow">MATCH SETUP</div><h1>Set the game up</h1><p class="muted">Choose teams, playing squads and toss. Then confirm the opening players at the ground.</p>
-    <label>Scorer<select id="matchScorer"><option value="">Choose your name</option></select></label>
+    <label>Scorer<input id="matchScorer" type="text" list="scorerDirectoryList" maxlength="80" autocomplete="off" placeholder="Choose a player or enter scorer name"></label>
+    <p class="field-hint">Select a player from either team or type any scorer's name. Scorers are saved separately for future suggestions.</p>
     <div class="form-grid">
       <label>Overs<input id="overs" type="number" min="1" max="50" value="10"></label>
       <label>Round / fixture<input id="roundName" maxlength="60" placeholder="League match 1"></label>
