@@ -471,7 +471,7 @@ body.sheet-open{overflow:hidden}
 .rematch-cta h2{margin:0 0 5px;font-size:17px;color:#145b50}
 .rematch-cta p{margin:0;color:#58756e;font-size:11px;line-height:1.5}
 .rematch-cta .eyebrow{margin-bottom:5px}
-.rematch-cta .btn{flex-shrink:0}
+.rematch-cta .btn{flex-shrink:0;width:auto;margin-top:0;white-space:nowrap}
 .toss-choice-buttons .btn.selected{background:#0a776e;color:#fff;box-shadow:0 3px 10px #0a776e2a}
 @media(max-width:650px){
   .rematch-cta{align-items:stretch;flex-direction:column;gap:12px;padding:13px}
