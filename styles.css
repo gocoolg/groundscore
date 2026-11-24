@@ -460,3 +460,20 @@ body.sheet-open{overflow:hidden}
  .danger-zone .btn{width:100%}
  .delete-sheet{padding-bottom:max(20px,env(safe-area-inset-bottom))}
 }
+
+
+/* Back-to-back rematch action from a completed tournament scorecard. */
+.rematch-cta{
+  display:flex;align-items:center;justify-content:space-between;gap:18px;
+  margin:16px 0;padding:17px;border:1px solid #bfe3d5;border-radius:14px;
+  background:linear-gradient(135deg,#f0faf5,#e5f5ef);
+}
+.rematch-cta h2{margin:0 0 5px;font-size:17px;color:#145b50}
+.rematch-cta p{margin:0;color:#58756e;font-size:11px;line-height:1.5}
+.rematch-cta .eyebrow{margin-bottom:5px}
+.rematch-cta .btn{flex-shrink:0}
+.toss-choice-buttons .btn.selected{background:#0a776e;color:#fff;box-shadow:0 3px 10px #0a776e2a}
+@media(max-width:650px){
+  .rematch-cta{align-items:stretch;flex-direction:column;gap:12px;padding:13px}
+  .rematch-cta .btn{width:100%}
+}
