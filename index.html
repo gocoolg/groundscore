@@ -112,7 +112,7 @@
 
   <section id="matchSetupView" class="view card-page hidden">
     <button id="matchSetupBackBtn" class="back-link">← Tournament</button>
-    <div class="eyebrow">MATCH SETUP</div><h1>Set the game up</h1><p class="muted">Choose teams, playing squads and toss. Then confirm the opening players at the ground.</p>
+    <div class="eyebrow">MATCH SETUP</div><h1 id="matchSetupHeading">Set the game up</h1><p id="matchSetupDescription" class="muted">Choose teams, playing squads and toss. Then confirm the opening players at the ground.</p>
     <label>Scorer<input id="matchScorer" type="text" list="scorerDirectoryList" maxlength="80" autocomplete="off" placeholder="Choose a player or enter scorer name"></label>
     <p class="field-hint">Select a player from either team or type any scorer's name. Scorers are saved separately for future suggestions.</p>
     <div class="form-grid">
@@ -139,18 +139,27 @@
     <div class="toss-card">
       <div class="toss-card-top">
         <div>
-          <span class="eyebrow">TEAM 1 CALLS</span>
-          <h2>Heads or tails?</h2>
-          <p class="muted">Team 1 chooses one side. The coin decides which team wins the toss.</p>
+          <span id="tossKicker" class="eyebrow">TEAM 1 CALLS</span>
+          <h2 id="tossTitle">Heads or tails?</h2>
+          <p id="tossDescription" class="muted">Team 1 chooses one side. The coin decides which team wins the toss.</p>
         </div>
         <div id="coinFace" class="coin-face" aria-live="polite">H</div>
       </div>
-      <div class="toss-call-buttons">
-        <button id="tossCallHeads" type="button" class="toss-call selected" aria-pressed="true">HEADS</button>
-        <button id="tossCallTails" type="button" class="toss-call" aria-pressed="false">TAILS</button>
+      <div id="coinTossControls">
+        <div class="toss-call-buttons">
+          <button id="tossCallHeads" type="button" class="toss-call selected" aria-pressed="true">HEADS</button>
+          <button id="tossCallTails" type="button" class="toss-call" aria-pressed="false">TAILS</button>
+        </div>
+        <button id="flipCoinBtn" type="button" class="btn btn-primary btn-wide">Flip coin</button>
+      </div>
+      <div id="rematchChoiceControls" class="hidden">
+        <div id="rematchWinnerPrompt" class="toss-status"></div>
+        <div class="toss-choice-buttons">
+          <button id="rematchBatFirstBtn" type="button" class="btn btn-secondary">Bat first</button>
+          <button id="rematchBowlFirstBtn" type="button" class="btn btn-secondary">Bowl first</button>
+        </div>
       </div>
       <div id="tossStatus" class="toss-status">Team 1 call: HEADS selected by default. Choose TAILS to switch, or flip the coin.</div>
-      <button id="flipCoinBtn" type="button" class="btn btn-primary btn-wide">Flip coin</button>
       <div id="tossDecisionSummary" class="toss-decision-summary hidden">
         <strong id="tossWinnerStatus"></strong>
         <span id="tossDecisionResult"></span>
@@ -261,6 +270,14 @@
     <section class="final-scorecard-section">
       <div class="section-heading"><div><span class="eyebrow">FULL MATCH SCORECARD</span><h2>Innings scorecards</h2></div></div>
       <div id="finalScorecard" class="final-scorecard-list"></div>
+    </section>
+    <section id="rematchCta" class="rematch-cta hidden">
+      <div>
+        <span class="eyebrow">NEXT MATCH</span>
+        <h2>Run it back</h2>
+        <p id="rematchDescription">The winning team gets first choice to bat or bowl.</p>
+      </div>
+      <button id="startRematchBtn" type="button" class="btn btn-primary btn-wide">Start next match with same teams</button>
     </section>
     <div class="summary-grid">
       <div class="card"><h3>Top run-scorers</h3><div id="battingSummary"></div></div>
