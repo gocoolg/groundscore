@@ -172,7 +172,7 @@
     <div id="matchSticky" class="match-sticky">
       <div class="match-sticky-top">
         <div class="match-identity"><div id="matchTitle" class="match-title">Team A vs Team B</div><div id="matchSubTitle" class="match-subtitle"></div></div>
-        <div class="match-top-buttons"><span id="matchStatus" class="live-pill">LIVE</span><button id="shareMatchBtn" class="share-btn">Share ↗</button></div>
+        <div class="match-top-buttons"><span id="matchStatus" class="live-pill">LIVE</span><button id="scoreboardModeBtn" class="share-btn scoreboard-open-btn" type="button" aria-label="Open full-screen scoreboard">⛶ Display</button><button id="shareMatchBtn" class="share-btn">Share ↗</button></div>
       </div>
       <div class="scoreline">
         <div class="scoreline-main"><div id="scoreText" class="score-figure">0/0</div><div class="scoreline-meta"><span id="inningsLabel">1st innings</span><span id="oversText">0.0 / 10 ov</span></div></div>
@@ -340,6 +340,27 @@
     <p id="deleteTournamentError" class="form-error" role="alert"></p>
     <div class="delete-actions"><button id="cancelDeleteTournamentBtn" class="btn btn-quiet" type="button">Cancel</button><button id="confirmDeleteTournamentBtn" class="btn btn-danger" type="button">Delete permanently</button></div>
   </div>
+</div>
+<div id="scoreboardMode" class="scoreboard-mode hidden" role="dialog" aria-modal="true" aria-label="Full-screen cricket scoreboard">
+  <header class="scoreboard-top">
+    <div class="scoreboard-brand"><span class="scoreboard-brand-ball">G</span><div><strong id="scoreboardMatchTitle">Team A vs Team B</strong><small id="scoreboardTournament">GroundScore</small></div></div>
+    <div class="scoreboard-controls">
+      <span id="scoreboardWakeStatus" class="scoreboard-wake-status">SCREEN MAY TURN OFF</span>
+      <button id="scoreboardWakeBtn" class="scoreboard-control-btn" type="button" aria-pressed="false">Keep awake</button>
+      <button id="closeScoreboardBtn" class="scoreboard-close-btn" type="button" aria-label="Close scoreboard">×</button>
+    </div>
+  </header>
+  <main class="scoreboard-stage">
+    <section class="scoreboard-main">
+      <div class="scoreboard-innings"><span id="scoreboardInnings">1ST INNINGS</span><span id="scoreboardBattingTeam">BATTING TEAM</span></div>
+      <div id="scoreboardScore" class="scoreboard-score">0/0</div>
+      <div id="scoreboardOvers" class="scoreboard-overs">0.0 / 10 OVERS</div>
+    </section>
+    <section id="scoreboardStats" class="scoreboard-stats" aria-live="polite">
+      <div class="scoreboard-stat"><span>CURRENT RUN RATE</span><strong>0.00</strong></div>
+    </section>
+    <footer id="scoreboardStatus" class="scoreboard-status">LIVE SCORE · UPDATES AUTOMATICALLY</footer>
+  </main>
 </div>
 <div id="appLoader" class="app-loader hidden" role="status" aria-live="polite" aria-label="Loading">
   <div class="loader-card">
