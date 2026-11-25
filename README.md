@@ -68,6 +68,7 @@ GroundScore is a mobile-first cricket scoring and tournament platform for local 
 - Copy a direct link to an individual match.
 - Spectators can open the match without installing an app or creating an account.
 - The open match view refreshes from Supabase every eight seconds.
+- The homepage displays an approximate live count of active browser sessions, refreshed through a lightweight Supabase heartbeat every 25 seconds. Sessions expire from the count after 75 seconds without a heartbeat.
 
 ### Back-to-back rematches
 - A completed scorecard can offer **Start next match** when there is a winner.
@@ -174,7 +175,7 @@ The app reads these two values in the browser. A publishable key is intended for
 
 For a new Supabase project, open **Supabase Dashboard → SQL Editor**, paste the complete [`schema.sql`](schema.sql) file and run it.
 
-The root schema creates the tournament, member, team, squad, match, player, innings and delivery tables. It also includes the current coin-toss columns and reusable player/scorer directories. It is designed to be safe to re-run and preserves existing match data.
+The root schema creates the tournament, member, team, squad, match, player, innings and delivery tables. It also includes the current coin-toss columns, reusable player/scorer directories and live site-viewer presence counter. It is designed to be safe to re-run and preserves existing match data.
 
 If the project was set up using an older version of GroundScore, apply any feature migrations that have not yet been run:
 
@@ -183,6 +184,7 @@ If the project was set up using an older version of GroundScore, apply any featu
 | [`add_coin_toss_columns.sql`](supabase/add_coin_toss_columns.sql) | Adds coin-toss metadata to older match tables. |
 | [`20261123_player_directory.sql`](supabase/migrations/20261123_player_directory.sql) | Creates and backfills reusable player-name suggestions. |
 | [`20261124_scorer_directory.sql`](supabase/migrations/20261124_scorer_directory.sql) | Creates and backfills the separate scorer directory. |
+| [`20261125_site_viewer_presence.sql`](supabase/migrations/20261125_site_viewer_presence.sql) | Adds a private heartbeat table and RPC for the homepage live viewer count. |
 | [`20261120_delete_tournament_admin.sql`](supabase/migrations/20261120_delete_tournament_admin.sql) | Creates the restricted database function used by the delete Edge Function. |
 | [`20261120_revoke_public_deletes.sql`](supabase/migrations/20261120_revoke_public_deletes.sql) | Revokes direct hard-delete privileges from the anonymous browser role. |
 
