@@ -22,7 +22,8 @@ const state = {
   selectedScoreTab: "scorer", selectedTournamentTab: "matches",
   lineupConfirmed: false, pendingBatterReview: false, milestones: new Set(), pendingKey: null,
   toss: null, squadDraft: { team1: [], team2: [] }, teamCreationDraft: [],
-  loaderDepth: 0, loaderStartedAt: 0, loaderTimer: null, autoCompleting: false
+  loaderDepth: 0, loaderStartedAt: 0, loaderTimer: null, autoCompleting: false,
+  viewerPresenceTimer: null, viewerSessionId: null
 };
 
 function esc(value) {
@@ -309,6 +310,50 @@ function setActiveTournamentTab(tab) {
 
 function showError(error) { toast(error?.message || String(error)); }
 
+function getViewerSessionId() {
+  try {
+    const stored = sessionStorage.getItem("groundscore_viewer_session");
+    if (stored && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(stored)) return stored;
+  } catch (_) {}
+  const id = typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, ch => {
+        const r = Math.floor(Math.random() * 16);
+        return (ch === "x" ? r : ((r & 3) | 8)).toString(16);
+      });
+  try { sessionStorage.setItem("groundscore_viewer_session", id); } catch (_) {}
+  return id;
+}
+async function updateSiteViewerCount() {
+  try {
+    const count = await api("rpc/record_site_viewer", {
+      method: "POST",
+      body: JSON.stringify({ p_session_id: state.viewerSessionId })
+    });
+    const viewers = Number(count);
+    if (!Number.isFinite(viewers) || viewers < 0) throw new Error("Invalid viewer count");
+    const label = $("viewerCount");
+    const wrap = $("viewerCountWrap");
+    if (label) label.textContent = viewers + (viewers === 1 ? " VIEWER ONLINE" : " VIEWERS ONLINE");
+    if (wrap) wrap.classList.remove("viewer-count-unavailable");
+  } catch (error) {
+    const label = $("viewerCount");
+    const wrap = $("viewerCountWrap");
+    if (label) label.textContent = "LIVE COUNT UNAVAILABLE";
+    if (wrap) wrap.classList.add("viewer-count-unavailable");
+    console.info("Live site viewer count is unavailable. Apply the site-viewer presence migration in Supabase.", error);
+  }
+}
+function startSiteViewerCount() {
+  if (state.viewerPresenceTimer) return;
+  state.viewerSessionId = getViewerSessionId();
+  updateSiteViewerCount();
+  state.viewerPresenceTimer = setInterval(updateSiteViewerCount, 25000);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) updateSiteViewerCount();
+  });
+}
+
 async function init() {
   setNetwork();
   if (!configured) {
@@ -317,6 +362,7 @@ async function init() {
     showView("homeView");
     return;
   }
+  startSiteViewerCount();
   await loadPlayerDirectory();
   await loadScorerDirectory();
   const sharedMatch = new URLSearchParams(window.location.search).get("match");
