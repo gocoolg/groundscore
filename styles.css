@@ -531,7 +531,7 @@ body.sheet-open{overflow:hidden}
 .scoreboard-main{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:0}
 .scoreboard-innings{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;color:#9fd6cc;font-size:clamp(9px,1.8vw,13px);font-weight:950;letter-spacing:2px}
 .scoreboard-innings span+span:before{content:"·";padding-right:10px;color:#4f9a8e}
-.scoreboard-score{font-size:clamp(96px,25vw,230px);line-height:.95;font-weight:1000;letter-spacing:-.075em;font-variant-numeric:tabular-nums;text-shadow:0 8px 40px #001b1a5c;margin:clamp(12px,3vh,28px) 0}
+.scoreboard-score{font-size:clamp(120px,29vw,320px);line-height:.9;font-weight:1000;letter-spacing:-.075em;font-variant-numeric:tabular-nums;text-shadow:0 8px 40px #001b1a5c;margin:clamp(12px,3vh,28px) 0;max-width:100%;white-space:nowrap}
 .scoreboard-overs{font-size:clamp(12px,2.4vw,21px);font-weight:850;letter-spacing:2.4px;color:#d3e9e3}
 .scoreboard-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;width:min(100%,760px)}
 .scoreboard-stat{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:clamp(11px,2vh,19px) 9px;background:#ffffff0d;border:1px solid #ffffff19;border-radius:13px}
@@ -545,7 +545,7 @@ body.sheet-open{overflow:hidden}
   .scoreboard-stage{grid-template-columns:minmax(0,1.25fr) minmax(250px,.75fr);grid-template-rows:minmax(0,1fr) auto;gap:clamp(12px,3vw,38px);padding:8px 0}
   .scoreboard-main{align-items:flex-start;text-align:left;padding-left:clamp(10px,4vw,55px)}
   .scoreboard-innings{justify-content:flex-start}
-  .scoreboard-score{font-size:clamp(100px,18vw,230px);margin:clamp(10px,3vh,26px) 0}
+  .scoreboard-score{font-size:clamp(150px,27vw,400px);margin:clamp(10px,3vh,26px) 0}
   .scoreboard-overs{font-size:clamp(12px,2vw,19px)}
   .scoreboard-stats{width:100%;grid-template-columns:repeat(2,minmax(0,1fr));align-content:center}
   .scoreboard-stat{min-height:clamp(75px,18vh,140px)}
@@ -559,7 +559,7 @@ body.sheet-open{overflow:hidden}
 }
 @media(max-height:430px) and (orientation:landscape){
   .scoreboard-brand-ball{width:28px;height:28px;flex-basis:28px}
-  .scoreboard-score{font-size:clamp(78px,19vh,150px);margin:8px 0}
+  .scoreboard-score{font-size:clamp(105px,26vh,185px);margin:8px 0}
   .scoreboard-innings{font-size:8px}
   .scoreboard-stats{gap:6px}
   .scoreboard-stat{min-height:55px;padding:7px}
