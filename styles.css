@@ -528,10 +528,10 @@ body.sheet-open{overflow:hidden}
 .scoreboard-control-btn,.scoreboard-close-btn{min-height:34px;border:1px solid #ffffff35;border-radius:9px;background:#ffffff12;color:#e5f5f0;padding:7px 10px;font-size:9px;font-weight:850}
 .scoreboard-close-btn{width:35px;padding:0;font-size:23px;line-height:1}
 .scoreboard-stage{flex:1;min-height:0;width:min(100%,1240px);margin:auto;display:grid;grid-template-rows:minmax(0,1fr) auto auto;align-content:center;justify-items:center;gap:clamp(12px,3vh,30px);padding:clamp(16px,3vh,36px) 0}
-.scoreboard-main{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:0}
+.scoreboard-main{width:100%;min-width:0;container-type:inline-size;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:0;overflow:hidden}
 .scoreboard-innings{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;color:#9fd6cc;font-size:clamp(9px,1.8vw,13px);font-weight:950;letter-spacing:2px}
 .scoreboard-innings span+span:before{content:"·";padding-right:10px;color:#4f9a8e}
-.scoreboard-score{font-size:clamp(120px,29vw,320px);line-height:.9;font-weight:1000;letter-spacing:-.075em;font-variant-numeric:tabular-nums;text-shadow:0 8px 40px #001b1a5c;margin:clamp(12px,3vh,28px) 0;max-width:100%;white-space:nowrap}
+.scoreboard-score{font-size:clamp(110px,min(36cqw,40vh),300px);line-height:.9;font-weight:1000;letter-spacing:-.075em;font-variant-numeric:tabular-nums;text-shadow:0 8px 40px #001b1a5c;margin:clamp(12px,3vh,28px) 0;max-width:100%;min-width:0;width:100%;white-space:nowrap;overflow:hidden}
 .scoreboard-overs{font-size:clamp(12px,2.4vw,21px);font-weight:850;letter-spacing:2.4px;color:#d3e9e3}
 .scoreboard-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;width:min(100%,760px)}
 .scoreboard-stat{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:clamp(11px,2vh,19px) 9px;background:#ffffff0d;border:1px solid #ffffff19;border-radius:13px}
@@ -542,10 +542,10 @@ body.sheet-open{overflow:hidden}
 @media(orientation:landscape){
   .scoreboard-mode{padding: max(8px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left))}
   .scoreboard-top{min-height:38px}
-  .scoreboard-stage{grid-template-columns:minmax(0,1.25fr) minmax(250px,.75fr);grid-template-rows:minmax(0,1fr) auto;gap:clamp(12px,3vw,38px);padding:8px 0}
+  .scoreboard-stage{grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr);grid-template-rows:minmax(0,1fr) auto;gap:clamp(12px,3vw,38px);padding:8px 0}
   .scoreboard-main{align-items:flex-start;text-align:left;padding-left:clamp(10px,4vw,55px)}
   .scoreboard-innings{justify-content:flex-start}
-  .scoreboard-score{font-size:clamp(150px,27vw,400px);margin:clamp(10px,3vh,26px) 0}
+  .scoreboard-score{font-size:clamp(110px,min(36cqw,40vh),300px);margin:clamp(10px,3vh,26px) 0}
   .scoreboard-overs{font-size:clamp(12px,2vw,19px)}
   .scoreboard-stats{width:100%;grid-template-columns:repeat(2,minmax(0,1fr));align-content:center}
   .scoreboard-stat{min-height:clamp(75px,18vh,140px)}
@@ -598,7 +598,7 @@ body.sheet-open{overflow:hidden}
   }
   .scoreboard-innings span+span:before{padding-right:7px}
   .scoreboard-score{
-    font-size:clamp(155px,56vh,235px);
+    font-size:clamp(145px,min(54vh,34cqw),225px);
     line-height:.84;letter-spacing:-.08em;
     margin:clamp(2px,1vh,7px) 0;
   }
@@ -616,7 +616,7 @@ body.sheet-open{overflow:hidden}
   .scoreboard-status{font-size:7px;letter-spacing:1.1px;grid-column:1/-1}
 }
 @media(orientation:landscape) and (max-width:950px) and (max-height:360px){
-  .scoreboard-score{font-size:clamp(135px,53vh,190px)}
+  .scoreboard-score{font-size:clamp(125px,min(48vh,32cqw),185px)}
   .scoreboard-stage{gap:4px}
   .scoreboard-stat{min-height:43px;padding:4px}
   .scoreboard-stat strong{font-size:17px}
