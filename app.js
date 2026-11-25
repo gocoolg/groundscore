@@ -23,7 +23,9 @@ const state = {
   lineupConfirmed: false, pendingBatterReview: false, milestones: new Set(), pendingKey: null,
   toss: null, squadDraft: { team1: [], team2: [] }, teamCreationDraft: [],
   loaderDepth: 0, loaderStartedAt: 0, loaderTimer: null, autoCompleting: false,
-  viewerPresenceTimer: null, viewerSessionId: null
+  viewerPresenceTimer: null, viewerSessionId: null,
+  scoreboardOpen: false, scoreboardWakeLock: null, scoreboardWakeEnabled: false,
+  scoreboardFullscreenEntered: false
 };
 
 function esc(value) {
@@ -112,6 +114,7 @@ function setBatterSelection(changed) {
 
 function overText(n) { return Math.floor(n / 6) + "." + (n % 6); }
 function showView(id) {
+  if (id !== "scoreView" && state.scoreboardOpen) closeScoreboardMode();
   ["homeView","tournamentCreateView","tournamentListView","joinView","tournamentView","matchSetupView","scoreView","summaryView"]
     .forEach(view => $(view)?.classList.toggle("hidden", view !== id));
   $("homeBtn").classList.toggle("hidden", id === "homeView");
@@ -991,6 +994,108 @@ function fillSelect(element, players, selectedId, placeholder) {
     players.map(player => '<option value="' + esc(player.id) + '">' + esc(player.name) + "</option>").join("");
   if (selectedId && players.some(player => player.id === selectedId)) element.value = selectedId;
 }
+function updateScoreboardWakeUi(message) {
+  const status = $("scoreboardWakeStatus");
+  const button = $("scoreboardWakeBtn");
+  if (!status || !button) return;
+  const active = !!state.scoreboardWakeLock && !state.scoreboardWakeLock.released;
+  if (active) {
+    status.textContent = "SCREEN AWAKE";
+    button.textContent = "Wake lock · On";
+    button.setAttribute("aria-pressed", "true");
+    button.disabled = false;
+  } else {
+    status.textContent = message || ("wakeLock" in navigator ? "SCREEN MAY TURN OFF" : "KEEP AWAKE NOT SUPPORTED");
+    button.textContent = "Keep awake";
+    button.setAttribute("aria-pressed", "false");
+    button.disabled = !("wakeLock" in navigator);
+  }
+}
+async function requestScoreboardWakeLock() {
+  if (!state.scoreboardOpen || !state.scoreboardWakeEnabled) return;
+  if (!("wakeLock" in navigator)) {
+    updateScoreboardWakeUi("KEEP AWAKE NOT SUPPORTED");
+    return;
+  }
+  try {
+    const sentinel = await navigator.wakeLock.request("screen");
+    state.scoreboardWakeLock = sentinel;
+    sentinel.addEventListener("release", () => {
+      if (state.scoreboardWakeLock === sentinel) state.scoreboardWakeLock = null;
+      if (state.scoreboardOpen) updateScoreboardWakeUi();
+    });
+    updateScoreboardWakeUi();
+  } catch (error) {
+    updateScoreboardWakeUi("SCREEN MAY TURN OFF");
+    console.info("Screen Wake Lock is unavailable in this browser or context.", error);
+  }
+}
+function toggleScoreboardWakeLock() {
+  if (state.scoreboardWakeLock && !state.scoreboardWakeLock.released) {
+    state.scoreboardWakeEnabled = false;
+    const lock = state.scoreboardWakeLock;
+    state.scoreboardWakeLock = null;
+    lock.release().catch(() => {});
+    updateScoreboardWakeUi("SCREEN MAY TURN OFF");
+    return;
+  }
+  state.scoreboardWakeEnabled = true;
+  requestScoreboardWakeLock();
+}
+function openScoreboardMode() {
+  if (!state.match) return;
+  state.scoreboardOpen = true;
+  state.scoreboardWakeEnabled = true;
+  $("scoreboardMode").classList.remove("hidden");
+  renderFullscreenScoreboard();
+  // Invoke both browser APIs directly from the user's tap while activation is available.
+  if (document.documentElement.requestFullscreen) {
+    try {
+      document.documentElement.requestFullscreen({ navigationUI: "hide" })
+        .catch(error => console.info("Browser full-screen mode is unavailable; using the in-page full-screen layout.", error));
+    } catch (error) {
+      console.info("Browser full-screen mode is unavailable; using the in-page full-screen layout.", error);
+    }
+  }
+  requestScoreboardWakeLock();
+}
+function closeScoreboardMode(exitFullscreen = true) {
+  if (!state.scoreboardOpen) return;
+  state.scoreboardOpen = false;
+  state.scoreboardWakeEnabled = false;
+  $("scoreboardMode")?.classList.add("hidden");
+  const lock = state.scoreboardWakeLock;
+  state.scoreboardWakeLock = null;
+  if (lock && !lock.released) lock.release().catch(() => {});
+  if (exitFullscreen && document.fullscreenElement && document.exitFullscreen) {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+function renderFullscreenScoreboard(stats, chase, requiredRate, innings) {
+  if (!state.scoreboardOpen || !state.match || !innings) return;
+  $("scoreboardMatchTitle").textContent = state.match.team1 + "  vs  " + state.match.team2;
+  $("scoreboardTournament").textContent = state.tournament?.name || "GroundScore";
+  $("scoreboardBattingTeam").textContent = teamName(innings.batting_team);
+  $("scoreboardInnings").textContent = (Number(innings.innings_no) === 1 ? "1ST" : "2ND") + " INNINGS";
+  $("scoreboardScore").textContent = stats.total + "/" + stats.wickets;
+  $("scoreboardOvers").textContent = stats.overs + " / " + state.match.overs + " OVERS";
+  $("scoreboardStatus").textContent = state.match.status === "live" ? "LIVE SCORE · UPDATES AUTOMATICALLY" : "MATCH " + String(state.match.status || "").toUpperCase();
+  const cards = chase ? [
+    ["TARGET", chase.target],
+    ["TO WIN", chase.runsRequired],
+    ["BALLS LEFT", chase.ballsRemaining],
+    ["REQUIRED RATE", Number.isFinite(requiredRate) ? requiredRate.toFixed(2) : "—"],
+    ["CURRENT RATE", stats.runRateText]
+  ] : [
+    ["CURRENT RUN RATE", stats.runRateText],
+    ["BALLS LEFT", Math.max(0, Number(state.match.overs) * 6 - stats.legalBalls)],
+    ["WICKETS LEFT", Math.max(0, playersFor(innings.batting_team).length - 1 - stats.wickets)]
+  ];
+  $("scoreboardStats").innerHTML = cards.map(([label, value]) =>
+    '<div class="scoreboard-stat"><span>' + esc(label) + '</span><strong>' + esc(value) + '</strong></div>'
+  ).join("");
+}
+
 function renderScore() {
   const innings = currentInnings();
   if (!innings) return;
@@ -1022,6 +1127,7 @@ function renderScore() {
   }
   $("runRate").textContent = stats.runRateText;
   $("requiredRate").textContent = target === null ? "—" : (Number.isFinite(requiredRate) ? requiredRate.toFixed(2) : "—");
+  renderFullscreenScoreboard(stats, chase, requiredRate, innings);
   $("scoreTournamentName").textContent = state.tournament?.name || "No tournament";
   $("detailMatchTitle").textContent = state.match.team1 + " vs " + state.match.team2;
   $("scorecardInnings").textContent = teamName(innings.batting_team) + " · " + stats.total + "/" + stats.wickets;
@@ -1696,6 +1802,21 @@ function attachEvents() {
   bind("endInningsBtn","click",endInnings);
   bind("finishMatchBtn","click",() => finishMatch(false).catch(showError));
   bind("shareMatchBtn","click",shareMatch);
+  bind("scoreboardModeBtn","click",openScoreboardMode);
+  bind("closeScoreboardBtn","click",() => closeScoreboardMode());
+  bind("scoreboardWakeBtn","click",toggleScoreboardWakeLock);
+  bind("scoreboardMode","click",event => { if (event.target.id === "scoreboardMode") closeScoreboardMode(); });
+  document.addEventListener("visibilitychange", () => {
+    if (state.scoreboardOpen && !document.hidden && state.scoreboardWakeEnabled &&
+        (!state.scoreboardWakeLock || state.scoreboardWakeLock.released)) requestScoreboardWakeLock();
+  });
+  document.addEventListener("fullscreenchange", () => {
+    if (state.scoreboardOpen && state.scoreboardFullscreenEntered && !document.fullscreenElement) closeScoreboardMode(false);
+    state.scoreboardFullscreenEntered = !!document.fullscreenElement;
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && state.scoreboardOpen) closeScoreboardMode();
+  });
   bind("refreshBtn","click",() => withLoader("Refreshing scorecard…", () => loadMatch(state.match.id)).catch(showError));
   bind("backToTournamentBtn","click",() => withLoader("Opening tournament…", backToTournament).catch(showError));
   bind("summaryTournamentBtn","click",() => withLoader("Opening tournament…", backToTournament).catch(showError));
