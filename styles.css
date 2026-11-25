@@ -498,3 +498,12 @@ body.sheet-open{overflow:hidden}
 }
 .score-saving>*{opacity:.22}
 @keyframes scoreSavingSpin{to{transform:rotate(360deg)}}
+
+
+/* Homepage live site viewer count. */
+.viewer-count{display:inline-flex;align-items:center;gap:7px;color:#b5e8d9}
+.viewer-count i{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#42df9b;box-shadow:0 0 0 3px #42df9b24;animation:viewerPulse 1.8s ease-in-out infinite}
+.viewer-count.viewer-count-unavailable{color:#93aaa5}
+.viewer-count.viewer-count-unavailable i{background:#93aaa5;box-shadow:none;animation:none}
+@keyframes viewerPulse{0%,100%{opacity:1;box-shadow:0 0 0 3px #42df9b24}50%{opacity:.65;box-shadow:0 0 0 5px #42df9b10}}
+@media(prefers-reduced-motion:reduce){.viewer-count i{animation:none}}
