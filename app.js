@@ -1047,7 +1047,22 @@ function openScoreboardMode() {
   state.scoreboardOpen = true;
   state.scoreboardWakeEnabled = true;
   $("scoreboardMode").classList.remove("hidden");
-  renderFullscreenScoreboard();
+
+  // Paint the most recently loaded score immediately from memory. Do not wait
+  // for the next eight-second live poll before showing the current total.
+  if (currentInnings()) {
+    renderScore();
+  } else {
+    $("scoreboardScore").textContent = "—";
+    $("scoreboardStatus").textContent = "LOADING MATCH DATA…";
+  }
+
+  // Refresh in the background so the first visible score is fast and fresh.
+  const openingMatchId = state.match.id;
+  refreshLiveMatch(openingMatchId).catch(error =>
+    console.info("Could not refresh the scoreboard immediately; keeping the last loaded score.", error)
+  );
+
   // Invoke both browser APIs directly from the user's tap while activation is available.
   if (document.documentElement.requestFullscreen) {
     try {
