@@ -567,3 +567,58 @@ body.sheet-open{overflow:hidden}
   .scoreboard-stat span{font-size:7px}
 }
 @media(prefers-reduced-motion:reduce){.scoreboard-mode *{scroll-behavior:auto}}
+
+/* Mobile landscape scoreboard: make the score the main event and use the width. */
+@media(orientation:landscape) and (max-width:950px) and (max-height:600px){
+  .scoreboard-mode{
+    padding:max(5px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right))
+      max(5px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));
+    overflow:hidden;
+  }
+  .scoreboard-top{min-height:34px;gap:7px}
+  .scoreboard-brand{gap:7px}
+  .scoreboard-brand-ball{width:27px;height:27px;flex-basis:27px;font-size:15px;border-radius:8px}
+  .scoreboard-brand strong{font-size:12px;max-width:45vw}
+  .scoreboard-brand small{font-size:7px;margin-top:1px}
+  .scoreboard-controls{gap:5px}
+  .scoreboard-wake-status{font-size:7px}
+  .scoreboard-control-btn,.scoreboard-close-btn{min-height:29px;padding:5px 8px;font-size:8px}
+  .scoreboard-close-btn{width:30px;padding:0;font-size:20px}
+  .scoreboard-stage{
+    width:100%;min-height:0;grid-template-columns:minmax(0,1fr);
+    grid-template-rows:minmax(0,1fr) auto auto;
+    gap:7px;padding:2px 0 0;align-content:stretch
+  }
+  .scoreboard-main{
+    align-items:center;justify-content:center;text-align:center;
+    padding:0;min-height:0
+  }
+  .scoreboard-innings{
+    justify-content:center;gap:7px;font-size:9px;letter-spacing:1.4px
+  }
+  .scoreboard-innings span+span:before{padding-right:7px}
+  .scoreboard-score{
+    font-size:clamp(155px,56vh,235px);
+    line-height:.84;letter-spacing:-.08em;
+    margin:clamp(2px,1vh,7px) 0;
+  }
+  .scoreboard-overs{font-size:clamp(11px,3vh,14px);letter-spacing:1.8px}
+  .scoreboard-stats{
+    width:100%;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));
+    gap:6px;align-content:center
+  }
+  .scoreboard-stat{
+    min-height:clamp(48px,13vh,58px);
+    padding:5px 4px;gap:4px;border-radius:9px
+  }
+  .scoreboard-stat span{font-size:7px;letter-spacing:.7px}
+  .scoreboard-stat strong{font-size:clamp(17px,4vh,23px)}
+  .scoreboard-status{font-size:7px;letter-spacing:1.1px;grid-column:1/-1}
+}
+@media(orientation:landscape) and (max-width:950px) and (max-height:360px){
+  .scoreboard-score{font-size:clamp(135px,53vh,190px)}
+  .scoreboard-stage{gap:4px}
+  .scoreboard-stat{min-height:43px;padding:4px}
+  .scoreboard-stat strong{font-size:17px}
+}
+
