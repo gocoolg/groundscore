@@ -507,3 +507,63 @@ body.sheet-open{overflow:hidden}
 .viewer-count.viewer-count-unavailable i{background:#93aaa5;box-shadow:none;animation:none}
 @keyframes viewerPulse{0%,100%{opacity:1;box-shadow:0 0 0 3px #42df9b24}50%{opacity:.65;box-shadow:0 0 0 5px #42df9b10}}
 @media(prefers-reduced-motion:reduce){.viewer-count i{animation:none}}
+
+
+/* Full-screen live scoreboard. Responsive in both portrait and landscape. */
+.scoreboard-mode{
+  position:fixed;inset:0;z-index:500;width:100%;height:100vh;height:100dvh;
+  overflow:auto;background:radial-gradient(circle at 50% 38%,#0d5550 0,#073b38 46%,#041f1e 100%);
+  color:#fff;display:flex;flex-direction:column;padding:
+    max(12px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right))
+    max(14px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));
+}
+.scoreboard-top{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
+.scoreboard-brand{display:flex;align-items:center;gap:10px;min-width:0}
+.scoreboard-brand-ball{width:34px;height:34px;flex:0 0 34px;border-radius:11px;background:#13a395;display:grid;place-items:center;font-size:19px;font-weight:1000}
+.scoreboard-brand>div{min-width:0}
+.scoreboard-brand strong{display:block;font-size:clamp(11px,2vw,16px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:54vw}
+.scoreboard-brand small{display:block;margin-top:3px;color:#8fbdb5;font-size:9px;letter-spacing:1px;text-transform:uppercase}
+.scoreboard-controls{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.scoreboard-wake-status{font-size:8px;font-weight:900;letter-spacing:.8px;color:#9fd9c8;white-space:nowrap}
+.scoreboard-control-btn,.scoreboard-close-btn{min-height:34px;border:1px solid #ffffff35;border-radius:9px;background:#ffffff12;color:#e5f5f0;padding:7px 10px;font-size:9px;font-weight:850}
+.scoreboard-close-btn{width:35px;padding:0;font-size:23px;line-height:1}
+.scoreboard-stage{flex:1;min-height:0;width:min(100%,1240px);margin:auto;display:grid;grid-template-rows:minmax(0,1fr) auto auto;align-content:center;justify-items:center;gap:clamp(12px,3vh,30px);padding:clamp(16px,3vh,36px) 0}
+.scoreboard-main{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:0}
+.scoreboard-innings{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;color:#9fd6cc;font-size:clamp(9px,1.8vw,13px);font-weight:950;letter-spacing:2px}
+.scoreboard-innings span+span:before{content:"·";padding-right:10px;color:#4f9a8e}
+.scoreboard-score{font-size:clamp(96px,25vw,230px);line-height:.95;font-weight:1000;letter-spacing:-.075em;font-variant-numeric:tabular-nums;text-shadow:0 8px 40px #001b1a5c;margin:clamp(12px,3vh,28px) 0}
+.scoreboard-overs{font-size:clamp(12px,2.4vw,21px);font-weight:850;letter-spacing:2.4px;color:#d3e9e3}
+.scoreboard-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;width:min(100%,760px)}
+.scoreboard-stat{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:clamp(11px,2vh,19px) 9px;background:#ffffff0d;border:1px solid #ffffff19;border-radius:13px}
+.scoreboard-stat span{font-size:clamp(8px,1.5vw,11px);font-weight:950;letter-spacing:1.3px;color:#92c8bd;text-align:center}
+.scoreboard-stat strong{font-size:clamp(22px,5vw,39px);line-height:1;font-weight:950;font-variant-numeric:tabular-nums}
+.scoreboard-status{font-size:9px;font-weight:850;letter-spacing:1.6px;color:#75c5b6;text-align:center}
+.scoreboard-mode button:focus-visible{outline:3px solid #f2c45f;outline-offset:3px}
+@media(orientation:landscape){
+  .scoreboard-mode{padding: max(8px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left))}
+  .scoreboard-top{min-height:38px}
+  .scoreboard-stage{grid-template-columns:minmax(0,1.25fr) minmax(250px,.75fr);grid-template-rows:minmax(0,1fr) auto;gap:clamp(12px,3vw,38px);padding:8px 0}
+  .scoreboard-main{align-items:flex-start;text-align:left;padding-left:clamp(10px,4vw,55px)}
+  .scoreboard-innings{justify-content:flex-start}
+  .scoreboard-score{font-size:clamp(100px,18vw,230px);margin:clamp(10px,3vh,26px) 0}
+  .scoreboard-overs{font-size:clamp(12px,2vw,19px)}
+  .scoreboard-stats{width:100%;grid-template-columns:repeat(2,minmax(0,1fr));align-content:center}
+  .scoreboard-stat{min-height:clamp(75px,18vh,140px)}
+  .scoreboard-status{grid-column:1/-1;align-self:end}
+}
+@media(max-width:600px) and (orientation:portrait){
+  .scoreboard-wake-status{display:none}
+  .scoreboard-brand strong{max-width:45vw}
+  .scoreboard-controls{gap:5px}
+  .scoreboard-control-btn{padding:7px 8px}
+}
+@media(max-height:430px) and (orientation:landscape){
+  .scoreboard-brand-ball{width:28px;height:28px;flex-basis:28px}
+  .scoreboard-score{font-size:clamp(78px,19vh,150px);margin:8px 0}
+  .scoreboard-innings{font-size:8px}
+  .scoreboard-stats{gap:6px}
+  .scoreboard-stat{min-height:55px;padding:7px}
+  .scoreboard-stat strong{font-size:clamp(18px,4vh,26px)}
+  .scoreboard-stat span{font-size:7px}
+}
+@media(prefers-reduced-motion:reduce){.scoreboard-mode *{scroll-behavior:auto}}
