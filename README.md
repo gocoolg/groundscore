@@ -69,6 +69,7 @@ GroundScore is a mobile-first cricket scoring and tournament platform for local 
 - Spectators can open the match without installing an app or creating an account.
 - The open match view refreshes from Supabase every eight seconds.
 - The homepage displays an approximate live count of active browser sessions, refreshed through a lightweight Supabase heartbeat every 25 seconds. Sessions expire from the count after 75 seconds without a heartbeat.
+- Open **Display** on a match to show a simplified full-screen scoreboard. It adapts to portrait and landscape and refreshes with the live match data. The app requests the browser Screen Wake Lock API when available; device/browser support and power-saving settings determine whether the screen can stay awake.
 
 ### Back-to-back rematches
 - A completed scorecard can offer **Start next match** when there is a winner.
