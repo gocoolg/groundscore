@@ -248,3 +248,82 @@ test("wicket replacement lineup can be completed after the wicket delivery", () 
   assert.equal(replacementLineup.strikerId, "c");
   assert.equal(replacementLineup.nonStrikerId, "b");
 });
+
+
+test("last remaining batter can continue scoring alone without a non-striker", () => {
+  const firstWicket = buildDelivery({
+    matchId: "match-1", inningsNo: 1, balls: [], players,
+    battingTeam: "team1", bowlingTeam: "team2", oversLimit: 10,
+    strikerId: "a", nonStrikerId: "b", bowlerId: "d",
+    scorerName: "Scorer", wicket: "wicket", dismissedBatsmanId: "a"
+  });
+  assert.equal(firstWicket.ok, true, firstWicket.errors?.join("; "));
+
+  const secondWicket = buildDelivery({
+    matchId: "match-1", inningsNo: 1, balls: [firstWicket.ball], players,
+    battingTeam: "team1", bowlingTeam: "team2", oversLimit: 10,
+    strikerId: "c", nonStrikerId: "b", bowlerId: "d",
+    scorerName: "Scorer", wicket: "wicket", dismissedBatsmanId: "c"
+  });
+  assert.equal(secondWicket.ok, true, secondWicket.errors?.join("; "));
+
+  const soloRun = buildDelivery({
+    matchId: "match-1", inningsNo: 1, balls: [firstWicket.ball, secondWicket.ball], players,
+    battingTeam: "team1", bowlingTeam: "team2", oversLimit: 10,
+    strikerId: "b", nonStrikerId: "", bowlerId: "e",
+    scorerName: "Scorer", batRuns: 3
+  });
+  assert.equal(soloRun.ok, true, soloRun.errors?.join("; "));
+  assert.equal(soloRun.ball.runs_off_bat, 3);
+  assert.equal(soloRun.ball.total_runs, 3);
+  assert.equal(soloRun.ball.striker_id, "b");
+  assert.equal(soloRun.ball.non_striker_id, "");
+  assert.equal(soloRun.ball.next_striker_id, "b");
+  assert.equal(soloRun.ball.next_non_striker_id, "");
+});
+
+test("last batter stays on strike after odd runs and legal over end", () => {
+  const fifth = Array.from({ length: 5 }, (_, i) => ({
+    innings_no: 1, delivery_number: i + 1, ball_number: i + 1,
+    over_number: 0, striker_id: "b", non_striker_id: null, bowler_id: "d",
+    extra_type: null, total_runs: 0, runs_off_bat: 0, wicket: null,
+    next_striker_id: "b", next_non_striker_id: null
+  }));
+  const dismissed = [
+    { innings_no: 1, wicket: "wicket", dismissed_batsman_id: "a" },
+    { innings_no: 1, wicket: "wicket", dismissed_batsman_id: "c" }
+  ];
+  const rows = [...dismissed, ...fifth];
+  const next = buildDelivery({
+    matchId: "match-1", inningsNo: 1, balls: rows, players,
+    battingTeam: "team1", bowlingTeam: "team2", oversLimit: 10,
+    strikerId: "b", nonStrikerId: "", bowlerId: "e",
+    scorerName: "Scorer", batRuns: 1
+  });
+  assert.equal(next.ok, true, next.errors?.join("; "));
+  assert.equal(next.ball.next_striker_id, "b");
+  assert.equal(next.ball.next_non_striker_id, "");
+  assert.equal(next.state.needsNewBowler, true);
+});
+
+test("innings ends when the final batter is dismissed", () => {
+  const history = [
+    { innings_no: 1, wicket: "wicket", dismissed_batsman_id: "a" },
+    { innings_no: 1, wicket: "wicket", dismissed_batsman_id: "c" }
+  ];
+  const lastWicket = buildDelivery({
+    matchId: "match-1", inningsNo: 1, balls: history, players,
+    battingTeam: "team1", bowlingTeam: "team2", oversLimit: 10,
+    strikerId: "b", nonStrikerId: "", bowlerId: "d",
+    scorerName: "Scorer", wicket: "wicket", dismissedBatsmanId: "b"
+  });
+  assert.equal(lastWicket.ok, true, lastWicket.errors?.join("; "));
+  const afterAllOut = buildDelivery({
+    matchId: "match-1", inningsNo: 1, balls: [...history, lastWicket.ball], players,
+    battingTeam: "team1", bowlingTeam: "team2", oversLimit: 10,
+    strikerId: "", nonStrikerId: "", bowlerId: "d",
+    scorerName: "Scorer", batRuns: 1
+  });
+  assert.equal(afterAllOut.ok, false);
+  assert.match(afterAllOut.errors.join(" "), /all out/i);
+});
