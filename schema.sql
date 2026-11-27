@@ -99,7 +99,7 @@ create table if not exists public.balls (
   extra_type text check (extra_type in ('wide','no-ball','bye','leg-bye')),
   extra_runs integer not null default 0,
   total_runs integer not null default 0,
-  wicket text check (wicket in ('bowled','caught','lbw','run out','stumped','hit wicket')),
+  wicket text check (wicket in ('bowled','caught','lbw','run out','stumped','hit wicket','wicket')),
   dismissed_batsman_id uuid references public.players(id),
   next_striker_id uuid references public.players(id),
   next_non_striker_id uuid references public.players(id),
