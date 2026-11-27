@@ -78,6 +78,7 @@
       <button data-tournament-tab="matches" class="active">Matches</button>
       <button data-tournament-tab="teams">Teams</button>
       <button data-tournament-tab="standings">Standings</button>
+      <button data-tournament-tab="metrics">Metrics</button>
       <button data-tournament-tab="members">Members</button>
     </div>
     <section id="tMatchesPanel" class="tournament-panel"><div class="section-heading"><h2>Fixtures & results</h2><button id="refreshTournamentBtn" class="btn btn-quiet">Refresh ↻</button></div><div id="tournamentMatches" class="tournament-list"></div></section>
@@ -98,6 +99,10 @@
     <section id="tStandingsPanel" class="tournament-panel hidden">
       <div class="section-heading"><div><h2>Points table</h2><p class="muted">Calculated from completed league matches.</p></div></div>
       <div id="standingsTable" class="table-wrap"></div>
+    </section>
+    <section id="tMetricsPanel" class="tournament-panel hidden">
+      <div class="section-heading"><div><h2>Tournament metrics</h2><p class="muted">Top individual performances across every match in this tournament.</p></div><button id="refreshMetricsBtn" class="btn btn-quiet" type="button">Refresh ↻</button></div>
+      <div id="tournamentMetrics"><div class="empty">Open Metrics to calculate tournament leaders.</div></div>
     </section>
     <section id="tMembersPanel" class="tournament-panel hidden">
       <div class="section-heading"><div><h2>Players & scorers</h2><p class="muted">People who joined this event.</p></div></div>
@@ -290,25 +295,34 @@
   </section>
 </main>
 
-<div id="extrasSheet" class="sheet-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="extrasTitle">
-  <div class="bottom-sheet">
-    <div class="sheet-grabber"></div><div class="sheet-heading"><div><span class="eyebrow">EXTRA DELIVERY</span><h2 id="extrasTitle">Record extras</h2></div><button class="sheet-close" data-close-sheet>×</button></div>
-    <label>Extra type<select id="extraKind"><option value="wide">Wide (+1 penalty)</option><option value="no-ball">No-ball (+1 penalty)</option><option value="bye">Bye</option><option value="leg-bye">Leg-bye</option></select></label>
-    <div class="form-grid"><label>Runs off bat<select id="extraBatRuns"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="6">6</option></select></label><label>Additional runs<select id="extraRunCount"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select></label></div>
-    <p id="extraHelp" class="field-hint">Penalty is added automatically for wides and no-balls. Additional runs are completed runs.</p>
-    <button id="saveExtrasBtn" class="btn btn-primary btn-wide">Record extras</button>
+<div id="quickExtrasPopup" class="quick-popup-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="quickExtrasTitle">
+  <div class="quick-popup">
+    <div class="quick-popup-header"><div><span class="eyebrow">EXTRAS</span><h2 id="quickExtrasTitle">Choose extra</h2></div><button id="quickExtrasCancelBtn" class="quick-popup-close" type="button" aria-label="Close">×</button></div>
+    <div id="quickExtrasTypes" class="quick-option-row">
+      <button type="button" class="quick-option selected" data-extra-type="wide">Wide</button>
+      <button type="button" class="quick-option" data-extra-type="no-ball">No-ball</button>
+    </div>
+    <div class="quick-popup-label">Additional completed runs</div>
+    <div id="quickExtrasRuns" class="quick-run-chips">
+      <button type="button" class="quick-run-chip selected" data-extra-runs="0">0</button>
+      <button type="button" class="quick-run-chip" data-extra-runs="1">1</button>
+      <button type="button" class="quick-run-chip" data-extra-runs="2">2</button>
+      <button type="button" class="quick-run-chip" data-extra-runs="3">3</button>
+      <button type="button" class="quick-run-chip" data-extra-runs="4">4</button>
+      <button type="button" class="quick-run-chip" data-extra-runs="5">5</button>
+      <button type="button" class="quick-run-chip" data-extra-runs="6">6</button>
+    </div>
+    <p id="quickExtrasSummary" class="quick-popup-summary">Wide · 1 automatic penalty + 0 additional run(s)</p>
+    <button id="confirmQuickExtrasBtn" class="btn btn-primary btn-wide" type="button">Record wide</button>
   </div>
 </div>
 
-<div id="wicketSheet" class="sheet-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="wicketTitle">
-  <div class="bottom-sheet">
-    <div class="sheet-grabber"></div><div class="sheet-heading"><div><span class="eyebrow">DISMISSAL</span><h2 id="wicketTitle">Record a wicket</h2></div><button class="sheet-close" data-close-sheet>×</button></div>
-    <label>Wicket type<select id="wicketType"><option value="bowled">Bowled</option><option value="caught">Caught</option><option value="run out">Run out</option><option value="lbw">LBW</option><option value="stumped">Stumped</option><option value="hit wicket">Hit wicket</option></select></label>
-    <label>Dismissed batter<select id="wicketBatter"><option value="">Choose batter</option></select></label>
-    <label>Incoming batter<select id="incomingBatter"><option value="">Choose incoming batter</option></select></label>
-    <div id="runOutFields" class="hidden"><label>Completed runs<select id="runOutRuns"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label><label class="check-row"><input id="crossedBeforeWicket" type="checkbox"> Batters had crossed before the wicket</label></div>
-    <p id="wicketHelp" class="field-hint">Choose who is out and the next batter. The incoming batter takes the dismissed batter's end after strike rotation.</p>
-    <button id="saveWicketBtn" class="btn btn-danger btn-wide">Confirm wicket</button>
+<div id="quickWicketPopup" class="quick-popup-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="quickWicketTitle">
+  <div class="quick-popup">
+    <div class="quick-popup-header"><div><span class="eyebrow">WICKET</span><h2 id="quickWicketTitle">Who is out?</h2></div><button id="quickWicketCancelBtn" class="quick-popup-close" type="button" aria-label="Close">×</button></div>
+    <div id="quickWicketPlayers" class="quick-wicket-players"></div>
+    <p class="quick-popup-hint">The new batter can be selected at the crease after recording the wicket.</p>
+    <button id="confirmQuickWicketBtn" class="btn btn-danger btn-wide" type="button">Record wicket</button>
   </div>
 </div>
 
