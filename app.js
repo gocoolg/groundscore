@@ -1652,8 +1652,15 @@ function htmlTable(headers, rows, emptyText) {
 }
 function renderScorecard() {
   if (!state.innings.length) return;
+  const scorecardsContainer = $("inningsScorecards");
+  const inningsSummaryContainer = $("inningsSummary");
+  if (!scorecardsContainer || !inningsSummaryContainer) {
+    console.error("Live scorecard containers are missing. Reload the page to fetch the current GroundScore assets.");
+    toast("Scorecard view needs a refresh. Reload the page and try again.");
+    return;
+  }
   const orderedInnings = [...state.innings].sort((a,b) => Number(a.innings_no) - Number(b.innings_no));
-  $("inningsScorecards").innerHTML = orderedInnings.map(innings => {
+  scorecardsContainer.innerHTML = orderedInnings.map(innings => {
     const batting = playersFor(innings.batting_team);
     const bowling = playersFor(innings.bowling_team);
     const batRows = battingScorecard(state.balls, batting, innings.innings_no);
@@ -1698,7 +1705,7 @@ function renderScorecard() {
       '</div></article>';
   }).join("");
 
-  $("inningsSummary").innerHTML = orderedInnings.map(innings => {
+  inningsSummaryContainer.innerHTML = orderedInnings.map(innings => {
     const stats = inningsStats(state.balls, innings.innings_no, state.match.overs);
     const isLive = Number(innings.innings_no) === Number(state.match.current_innings) &&
       state.match.status === "live";
