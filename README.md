@@ -62,7 +62,7 @@ GroundScore is a mobile-first cricket scoring and tournament platform for local 
 - Quick generic wicket popup with the striker selected by default; choose the dismissed batter, record the wicket, then select the replacement batter at the crease.
 - Automatic strike rotation based on completed-run parity and end changes after six legal deliveries.
 - New-batter confirmation after a wicket and bowler selection at the start of a new over.
-- Batting and bowling scorecards, extras, fall of wickets and ball-by-ball commentary.
+- Batting and bowling scorecards for both innings, including the completed first innings while the second-innings chase is live, plus extras, fall of wickets and ball-by-ball commentary.
 - Soft undo: a delivery is voided rather than physically deleted.
 - Team and batter milestone celebrations.
 
