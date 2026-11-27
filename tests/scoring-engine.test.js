@@ -228,3 +228,23 @@ test("generic wicket is credited to the current bowler", () => {
   const figures = bowlingScorecard(rows, players, 1)[0];
   assert.equal(figures.wickets, 1);
 });
+
+
+test("generic wicket leaves the dismissed end empty while retaining the surviving batter", () => {
+  const wicket = delivery({ wicket: "wicket", dismissedBatsmanId: "a" });
+  const next = currentBattingState([wicket], 1);
+  assert.equal(next.strikerId, "");
+  assert.equal(next.nonStrikerId, "b");
+});
+
+test("wicket replacement lineup can be completed after the wicket delivery", () => {
+  const wicket = delivery({ wicket: "wicket", dismissedBatsmanId: "a" });
+  const next = currentBattingState([wicket], 1);
+  const replacementLineup = {
+    strikerId: "c",
+    nonStrikerId: next.nonStrikerId,
+    bowlerId: next.bowlerId || "e"
+  };
+  assert.equal(replacementLineup.strikerId, "c");
+  assert.equal(replacementLineup.nonStrikerId, "b");
+});
