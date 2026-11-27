@@ -103,6 +103,21 @@ export function currentBattingState(balls, inningsNo, opening = {}) {
     previousOverBowlerId
   };
 }
+export function currentWicketBatters(balls, inningsNo, lineup = {}) {
+  const current = currentBattingState(balls, inningsNo, lineup);
+  const active = orderedBalls(activeInningsBalls(balls, inningsNo));
+  const dismissed = new Set(
+    active.filter(ball => ball.wicket && ball.dismissed_batsman_id)
+      .map(ball => ball.dismissed_batsman_id)
+  );
+  const eligible = playerId => !!playerId && !dismissed.has(playerId);
+  const strikerId = eligible(lineup.strikerId) ? lineup.strikerId : current.strikerId;
+  const nonStrikerId = eligible(lineup.nonStrikerId) ? lineup.nonStrikerId : current.nonStrikerId;
+  return {
+    strikerId: eligible(strikerId) ? strikerId : "",
+    nonStrikerId: eligible(nonStrikerId) && nonStrikerId !== strikerId ? nonStrikerId : ""
+  };
+}
 export function buildDelivery(input) {
   const {
     matchId, inningsNo, balls = [], players = [], strikerId, nonStrikerId, bowlerId,
