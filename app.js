@@ -25,7 +25,9 @@ const state = {
   loaderDepth: 0, loaderStartedAt: 0, loaderTimer: null, autoCompleting: false,
   viewerPresenceTimer: null, viewerSessionId: null,
   scoreboardOpen: false, scoreboardWakeLock: null, scoreboardWakeEnabled: false,
-  scoreboardFullscreenEntered: false
+  scoreboardFullscreenEntered: false,
+  tournamentMatches: [],
+  quickExtraType: "wide", quickExtraRuns: 0, quickWicketBatterId: ""
 };
 
 function esc(value) {
@@ -304,11 +306,15 @@ function setActiveTournamentTab(tab) {
   document.querySelectorAll("[data-tournament-tab]").forEach(button =>
     button.classList.toggle("active", button.dataset.tournamentTab === tab)
   );
-  ["matches","teams","standings","members"].forEach(name => {
-    const id = ({matches:"tMatchesPanel",teams:"tTeamsPanel",standings:"tStandingsPanel",members:"tMembersPanel"})[name];
-    $(id).classList.toggle("hidden", tab !== name);
-  });
+  const panels = {
+    matches:"tMatchesPanel", teams:"tTeamsPanel", standings:"tStandingsPanel",
+    metrics:"tMetricsPanel", members:"tMembersPanel"
+  };
+  Object.entries(panels).forEach(([name, id]) =>
+    $(id).classList.toggle("hidden", tab !== name)
+  );
   if (tab === "standings") renderStandings().catch(showError);
+  if (tab === "metrics") renderTournamentMetrics().catch(showError);
 }
 
 function showError(error) { toast(error?.message || String(error)); }
@@ -574,6 +580,7 @@ async function refreshTournament() {
     api("tournament_members?tournament_id=eq." + id + "&select=*&order=name.asc"),
     api("teams?tournament_id=eq." + id + "&select=*&order=name.asc")
   ]);
+  state.tournamentMatches = matches;
   state.members = members;
   state.teams = teams;
   state.teamPlayers = {};
@@ -1191,12 +1198,7 @@ function renderScore() {
   fillSelect($("nonStriker"), nonStrikerOptions, nonStrikerSelection, "Select non-striker");
   const availableBowlers = current.needsNewBowler ? bowling.filter(p => p.id !== current.previousOverBowlerId) : bowling;
   fillSelect($("bowler"), availableBowlers, current.bowlerId || opening.bowlerId, current.needsNewBowler ? "Choose new bowler" : "Select bowler");
-  const activeBatters = [current.strikerId || $("striker").value, current.nonStrikerId || $("nonStriker").value].filter(Boolean);
   $("coinResultLarge").textContent = state.match.toss_result ? state.match.toss_result.toUpperCase() : "TOSS";
-  fillSelect($("wicketBatter"), batting.filter(p => activeBatters.includes(p.id)), "", "Choose batter");
-  const dismissed = new Set(activeBalls(innings.innings_no).filter(b => b.wicket).map(b => b.dismissed_batsman_id));
-  const incoming = batting.filter(p => !dismissed.has(p.id) && !activeBatters.includes(p.id));
-  fillSelect($("incomingBatter"), incoming, "", incoming.length ? "Choose incoming batter" : "No batter remaining");
   const scorer = localScorer();
   const allOut = stats.wickets >= Math.max(1, batting.length - 1);
   const oversDone = stats.legalBalls >= Number(state.match.overs) * 6;
@@ -1230,7 +1232,7 @@ function renderScore() {
   $("nonStriker").classList.toggle("needs-attention", needsBatterConfirm);
   const canSubmit = canScore && state.lineupConfirmed && !needsBatterConfirm &&
     !!current.strikerId && !!current.nonStrikerId && !!current.bowlerId && !state.saving;
-  document.querySelectorAll("[data-quick-run],#openExtrasBtn,#openWicketBtn,#saveExtrasBtn,#saveWicketBtn")
+  document.querySelectorAll("[data-quick-run],#openExtrasBtn,#openWicketBtn,#confirmQuickExtrasBtn,#confirmQuickWicketBtn")
     .forEach(button => { button.disabled = !canSubmit; });
   $("undoBtn").disabled = !scorer || !activeBalls(innings.innings_no).length || state.saving;
   $("endInningsBtn").disabled = !scorer;
@@ -1334,7 +1336,7 @@ async function submitDelivery(input, sourceButton = null) {
     sourceButton.setAttribute("aria-busy", "true");
   }
   renderScore();
-  document.querySelectorAll("[data-quick-run],#openExtrasBtn,#openWicketBtn,#saveExtrasBtn,#saveWicketBtn").forEach(button => button.disabled = true);
+  document.querySelectorAll("[data-quick-run],#openExtrasBtn,#openWicketBtn,#confirmQuickExtrasBtn,#confirmQuickWicketBtn").forEach(button => button.disabled = true);
   try {
     const before = inningsStats(state.balls, innings.innings_no, state.match.overs);
     const previousBatterRuns = activeBalls(innings.innings_no)
@@ -1342,13 +1344,7 @@ async function submitDelivery(input, sourceButton = null) {
       .reduce((sum,b) => sum + Number(b.runs_off_bat || 0), 0);
     await api("balls", { method: "POST", body: JSON.stringify(ball) });
     state.pendingKey = null;
-    closeSheets();
-    $("wicketType").value = "bowled";
-    $("extraKind").value = "wide";
-    $("extraBatRuns").value = "0";
-    $("extraRunCount").value = "0";
-    $("runOutRuns").value = "0";
-    $("crossedBeforeWicket").checked = false;
+    closeQuickPopups();
     await loadMatch(state.match.id);
     if (ball.wicket) {
       // Require the scorer to acknowledge the replacement batter(s) before
@@ -1378,62 +1374,87 @@ async function submitDelivery(input, sourceButton = null) {
 function quickRun(runs, sourceButton) {
   submitDelivery({ batRuns: Number(runs) }, sourceButton);
 }
-function openSheet(id) {
-  $(id).classList.remove("hidden");
-  document.body.classList.add("sheet-open");
+function closeQuickPopups() {
+  $("quickExtrasPopup").classList.add("hidden");
+  $("quickWicketPopup").classList.add("hidden");
 }
-function closeSheets() {
-  $("extrasSheet").classList.add("hidden");
-  $("wicketSheet").classList.add("hidden");
-  document.body.classList.remove("sheet-open");
+function renderQuickExtras() {
+  document.querySelectorAll("[data-extra-type]").forEach(button =>
+    button.classList.toggle("selected", button.dataset.extraType === state.quickExtraType)
+  );
+  document.querySelectorAll("[data-extra-runs]").forEach(button =>
+    button.classList.toggle("selected", Number(button.dataset.extraRuns) === state.quickExtraRuns)
+  );
+  const label = state.quickExtraType === "wide" ? "Wide" : "No-ball";
+  $("quickExtrasSummary").textContent =
+    label + " · 1 automatic penalty + " + state.quickExtraRuns + " additional run(s)";
+  $("confirmQuickExtrasBtn").textContent = "Record " + label.toLowerCase();
 }
 function openExtras() {
-  $("extraKind").value = "wide"; $("extraBatRuns").value = "0"; $("extraRunCount").value = "0";
-  updateExtraHelp();
-  openSheet("extrasSheet");
+  if (state.saving) return;
+  state.quickExtraType = "wide";
+  state.quickExtraRuns = 0;
+  renderQuickExtras();
+  $("quickExtrasPopup").classList.remove("hidden");
 }
-function updateExtraHelp() {
-  const kind = $("extraKind").value;
-  const isWide = kind === "wide";
-  const isBye = kind === "bye" || kind === "leg-bye";
-  $("extraBatRuns").disabled = isWide || isBye;
-  if (isWide || isBye) $("extraBatRuns").value = "0";
-  $("extraHelp").textContent = kind === "wide" ? "A wide adds one automatic penalty run. Select any additional completed runs below." :
-    kind === "no-ball" ? "A no-ball adds one automatic penalty run. Add bat runs and/or additional completed runs." :
-    "Byes and leg-byes count as legal balls. Enter the completed runs under Additional runs.";
+function selectQuickExtraType(type) {
+  if (!["wide", "no-ball"].includes(type)) return;
+  state.quickExtraType = type;
+  renderQuickExtras();
 }
-function saveExtras() {
+function selectQuickExtraRuns(runs) {
+  const value = Number(runs);
+  if (!Number.isInteger(value) || value < 0 || value > 6) return;
+  state.quickExtraRuns = value;
+  renderQuickExtras();
+}
+function saveQuickExtras() {
   submitDelivery({
-    extraType: $("extraKind").value,
-    batRuns: Number($("extraBatRuns").value),
-    extraRuns: Number($("extraRunCount").value)
-  }, $("saveExtrasBtn"));
+    extraType: state.quickExtraType,
+    batRuns: 0,
+    extraRuns: state.quickExtraRuns
+  }, $("confirmQuickExtrasBtn"));
 }
 function openWicket() {
+  if (state.saving) return;
   const innings = currentInnings();
-  const batting = playersFor(innings.batting_team);
+  if (!innings) return;
   const current = currentBattingState(state.balls, innings.innings_no, currentLineup());
   const currentIds = [current.strikerId, current.nonStrikerId].filter(Boolean);
-  fillSelect($("wicketBatter"), batting.filter(p => currentIds.includes(p.id)), current.strikerId, "Choose batter");
-  const dismissed = new Set(activeBalls(innings.innings_no).filter(b => b.wicket).map(b => b.dismissed_batsman_id));
-  const available = batting.filter(p => !dismissed.has(p.id) && !currentIds.includes(p.id));
-  fillSelect($("incomingBatter"), available, "", available.length ? "Choose incoming batter" : "No batter remaining");
-  $("wicketType").value = "bowled";
-  $("runOutRuns").value = "0";
-  $("crossedBeforeWicket").checked = false;
-  $("runOutFields").classList.add("hidden");
-  $("wicketHelp").textContent = available.length ? "Choose the dismissed batter and the incoming batter." : "No recognised batter remains. Confirm the final wicket.";
-  openSheet("wicketSheet");
+  const choices = currentIds.map(id => state.players.find(player => player.id === id)).filter(Boolean);
+  if (!choices.length) {
+    toast("Select the current batters before recording a wicket");
+    return;
+  }
+  state.quickWicketBatterId = current.strikerId && choices.some(p => p.id === current.strikerId)
+    ? current.strikerId : choices[0].id;
+  $("quickWicketPlayers").innerHTML = choices.map(player => {
+    const role = player.id === current.strikerId ? "STRIKER" : "NON-STRIKER";
+    return '<button type="button" class="wicket-player-chip ' +
+      (player.id === state.quickWicketBatterId ? "selected" : "") +
+      '" data-wicket-batter="' + esc(player.id) + '">' +
+      '<small>' + role + '</small><strong>' + esc(player.name) + '</strong></button>';
+  }).join("");
+  $("quickWicketPopup").classList.remove("hidden");
 }
-function saveWicket() {
-  const wicket = $("wicketType").value;
+function selectQuickWicketBatter(playerId) {
+  if (!playerId || !$("quickWicketPlayers").querySelector('[data-wicket-batter="' + CSS.escape(playerId) + '"]')) return;
+  state.quickWicketBatterId = playerId;
+  $("quickWicketPlayers").querySelectorAll("[data-wicket-batter]").forEach(button =>
+    button.classList.toggle("selected", button.dataset.wicketBatter === playerId)
+  );
+}
+function saveQuickWicket() {
+  if (!state.quickWicketBatterId) {
+    toast("Choose which batter is out");
+    return;
+  }
+  // The scorer selects the replacement batter on the crease panel after this
+  // generic wicket is recorded. No dismissal-type selection is needed here.
   submitDelivery({
-    wicket,
-    dismissedBatsmanId: $("wicketBatter").value,
-    incomingBatterId: $("incomingBatter").value,
-    batRuns: wicket === "run out" ? Number($("runOutRuns").value) : 0,
-    crossedBeforeWicket: $("crossedBeforeWicket").checked
-  }, $("saveWicketBtn"));
+    wicket: "wicket",
+    dismissedBatsmanId: state.quickWicketBatterId
+  }, $("confirmQuickWicketBtn"));
 }
 async function undoBall() {
   if (!localScorer()) { toast("Join the tournament before correcting scores"); return; }
@@ -1772,6 +1793,98 @@ async function renderStandings() {
     "No completed league matches yet."
   );
 }
+async function renderTournamentMetrics() {
+  const target = $("tournamentMetrics");
+  target.innerHTML = '<div class="skeleton">Calculating tournament metrics…</div>';
+  const matches = state.tournamentMatches || [];
+  if (!matches.length) {
+    target.innerHTML = '<div class="empty">No matches yet. Tournament metrics will appear after the first match.</div>';
+    return;
+  }
+  const matchIds = matches.map(match => match.id).filter(Boolean);
+  if (!matchIds.length) {
+    target.innerHTML = '<div class="empty">No match data available yet.</div>';
+    return;
+  }
+  const matchFilter = "in.(" + matchIds.join(",") + ")";
+  const [balls, players] = await Promise.all([
+    api("balls?match_id=" + matchFilter + "&select=*&order=delivery_number.asc&limit=10000"),
+    api("players?match_id=" + matchFilter + "&select=*&limit=10000")
+  ]);
+  const matchById = new Map(matches.map(match => [match.id, match]));
+  const playerByMatchId = new Map();
+  const playerTotals = new Map();
+
+  players.forEach(player => {
+    const match = matchById.get(player.match_id);
+    if (!match) return;
+    const team = player.team === "team1" ? match.team1 : match.team2;
+    const name = String(player.name || "Unknown player").trim();
+    const key = name.toLocaleLowerCase() + "|" + String(team || "").toLocaleLowerCase();
+    if (!playerTotals.has(key)) {
+      playerTotals.set(key, { name, team: team || "Unknown team", runs:0, wickets:0, sixes:0, fours:0, dots:0 });
+    }
+    playerByMatchId.set(player.match_id + ":" + player.id, playerTotals.get(key));
+  });
+
+  let totalRuns = 0, totalWickets = 0, activeDeliveries = 0;
+  balls.forEach(ball => {
+    if (ball.voided_at) return;
+    activeDeliveries += 1;
+    const total = Number(ball.total_runs || 0);
+    const batRuns = Number(ball.runs_off_bat || 0);
+    totalRuns += total;
+    if (ball.wicket) totalWickets += 1;
+
+    const batter = playerByMatchId.get(ball.match_id + ":" + ball.striker_id);
+    if (batter) {
+      batter.runs += batRuns;
+      if (ball.is_boundary && batRuns === 6) batter.sixes += 1;
+      if (ball.is_boundary && batRuns === 4) batter.fours += 1;
+    }
+    const bowler = playerByMatchId.get(ball.match_id + ":" + ball.bowler_id);
+    if (bowler) {
+      // Older typed run-outs are excluded from bowler wickets. New quick
+      // wickets are generic and are counted against the current bowler.
+      if (ball.wicket && ball.wicket !== "run out") bowler.wickets += 1;
+      if (!["wide", "no-ball"].includes(ball.extra_type) && total === 0) bowler.dots += 1;
+    }
+  });
+
+  const metrics = [
+    { key:"runs", title:"Most runs", detail:"Batting runs" },
+    { key:"wickets", title:"Most wickets", detail:"Wickets credited to bowlers" },
+    { key:"sixes", title:"Most sixes", detail:"Sixes hit" },
+    { key:"fours", title:"Most fours", detail:"Fours hit" },
+    { key:"dots", title:"Most dots", detail:"Legal dot balls bowled" }
+  ];
+  const cards = metrics.map(metric => {
+    const leaders = [...playerTotals.values()]
+      .filter(player => player[metric.key] > 0)
+      .sort((a,b) => b[metric.key] - a[metric.key] || a.name.localeCompare(b.name))
+      .slice(0,5);
+    const rows = leaders.length ? leaders.map((player,index) =>
+      '<li class="metric-leader"><span class="metric-rank">' + (index + 1) +
+      '</span><span class="metric-player"><strong>' + esc(player.name) +
+      '</strong><small>' + esc(player.team) + '</small></span><strong class="metric-value">' +
+      player[metric.key] + '</strong></li>'
+    ).join("") : '<li class="metric-empty">No records yet</li>';
+    return '<article class="metric-card"><div class="metric-card-heading"><div><span class="eyebrow">' +
+      esc(metric.detail) + '</span><h3>' + esc(metric.title) +
+      '</h3></div><span class="metric-card-icon">' + ({
+        runs:"R", wickets:"W", sixes:"6", fours:"4", dots:"·"
+      })[metric.key] + '</span></div><ol class="metric-leader-list">' + rows + '</ol></article>';
+  }).join("");
+
+  target.innerHTML =
+    '<div class="metrics-summary">' +
+      '<div><span>MATCHES</span><strong>' + matches.length + '</strong></div>' +
+      '<div><span>RUNS SCORED</span><strong>' + totalRuns + '</strong></div>' +
+      '<div><span>WICKETS</span><strong>' + totalWickets + '</strong></div>' +
+      '<div><span>DELIVERIES</span><strong>' + activeDeliveries + '</strong></div>' +
+    '</div><div class="metrics-grid">' + cards + '</div>' +
+    '<p class="metrics-footnote">Figures include all recorded match deliveries and exclude voided balls. Dot balls count legal deliveries with zero runs. Historical run-outs are not credited to bowlers.</p>';
+}
 async function backToTournament() {
   if (!state.tournament) { await loadHome(); return; }
   await openTournament(state.tournament.id);
@@ -1811,8 +1924,6 @@ function attachEvents() {
   bind("confirmLineupBtn","click",confirmLineup);
   bind("openExtrasBtn","click",openExtras);
   bind("openWicketBtn","click",openWicket);
-  bind("saveExtrasBtn","click",saveExtras);
-  bind("saveWicketBtn","click",saveWicket);
   bind("undoBtn","click",undoBall);
   bind("endInningsBtn","click",endInnings);
   bind("finishMatchBtn","click",() => finishMatch(false).catch(showError));
@@ -1831,6 +1942,7 @@ function attachEvents() {
   });
   document.addEventListener("keydown", event => {
     if (event.key === "Escape" && state.scoreboardOpen) closeScoreboardMode();
+    else if (event.key === "Escape") closeQuickPopups();
   });
   bind("refreshBtn","click",() => withLoader("Refreshing scorecard…", () => loadMatch(state.match.id)).catch(showError));
   bind("backToTournamentBtn","click",() => withLoader("Opening tournament…", backToTournament).catch(showError));
@@ -1841,8 +1953,28 @@ function attachEvents() {
   bind("milestoneClose","click",() => $("milestoneOverlay").classList.add("hidden"));
   bind("tossDecisionSheet","click",event => { if(event.target.id === "tossDecisionSheet") { /* winner must choose */ } });
 
-  bind("extraKind","change",updateExtraHelp);
-  bind("wicketType","change",() => $("runOutFields").classList.toggle("hidden", $("wicketType").value !== "run out"));
+  bind("quickExtrasTypes","click",event => {
+    const button = event.target.closest("[data-extra-type]");
+    if (button) selectQuickExtraType(button.dataset.extraType);
+  });
+  bind("quickExtrasRuns","click",event => {
+    const button = event.target.closest("[data-extra-runs]");
+    if (button) selectQuickExtraRuns(button.dataset.extraRuns);
+  });
+  bind("quickWicketPlayers","click",event => {
+    const button = event.target.closest("[data-wicket-batter]");
+    if (button) selectQuickWicketBatter(button.dataset.wicketBatter);
+  });
+  bind("confirmQuickExtrasBtn","click",saveQuickExtras);
+  bind("confirmQuickWicketBtn","click",saveQuickWicket);
+  bind("quickExtrasCancelBtn","click",closeQuickPopups);
+  bind("quickWicketCancelBtn","click",closeQuickPopups);
+  bind("quickExtrasPopup","click",event => {
+    if (event.target.id === "quickExtrasPopup") closeQuickPopups();
+  });
+  bind("quickWicketPopup","click",event => {
+    if (event.target.id === "quickWicketPopup") closeQuickPopups();
+  });
   bind("team1","change",() => { resetTossUI(); onTeamNameChange("team1","team1").catch(showError); });
   bind("team2","change",() => { resetTossUI(); onTeamNameChange("team2","team2").catch(showError); });
   bind("addPlayers1Btn","click",() => addSquadEntry("team1"));
@@ -1874,9 +2006,6 @@ function attachEvents() {
   );
   document.querySelectorAll("[data-quick-run]").forEach(button =>
     button.addEventListener("click", () => quickRun(button.dataset.quickRun, button))
-  );
-  document.querySelectorAll("[data-close-sheet]").forEach(button =>
-    button.addEventListener("click", closeSheets)
   );
   ["extrasSheet","wicketSheet"].forEach(id => $(id).addEventListener("click", event => {
     if (event.target.id === id) closeSheets();
