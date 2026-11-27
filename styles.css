@@ -623,3 +623,62 @@ body.sheet-open{overflow:hidden}
   .scoreboard-stat strong{font-size:17px}
 }
 
+
+
+/* Quick extras and wicket popups: compact centred dialogs, not bottom sheets. */
+.quick-popup-backdrop{
+  position:fixed;inset:0;z-index:150;background:#062f2dcc;backdrop-filter:blur(3px);
+  display:grid;place-items:center;padding:16px
+}
+.quick-popup{
+  width:min(100%,390px);background:#fff;color:var(--ink);border:1px solid #d8e6e1;
+  border-radius:18px;padding:18px;box-shadow:0 22px 70px #001d1b66;animation:quickPopupIn .16s ease-out
+}
+@keyframes quickPopupIn{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+.quick-popup-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.quick-popup-header h2{margin:0;font-size:19px}
+.quick-popup-header .eyebrow{margin-bottom:4px}
+.quick-popup-close{width:34px;height:34px;border:0;border-radius:50%;background:#eef4f1;color:#536b65;font-size:22px;line-height:1}
+.quick-option-row{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:18px}
+.quick-option{min-height:48px;border:1px solid #d8e5e1;border-radius:11px;background:#f7faf8;color:#49615b;font-size:14px;font-weight:900}
+.quick-option.selected{background:#e4f5ef;color:#08786f;border-color:#0c9285;box-shadow:inset 0 0 0 1px #0c9285}
+.quick-popup-label{font-size:11px;font-weight:900;color:#627772;margin-bottom:9px}
+.quick-run-chips{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px}
+.quick-run-chip{min-width:0;aspect-ratio:1;border:1px solid #d9e5e2;border-radius:10px;background:#f7faf9;color:#26443e;font-size:17px;font-weight:950}
+.quick-run-chip.selected{background:#0c9285;color:#fff;border-color:#0c9285;box-shadow:0 3px 10px #0c92852b}
+.quick-popup-summary{margin:13px 0 4px;padding:10px;border-radius:9px;background:#f1f7f4;color:#41645a;font-size:10px;font-weight:850;text-align:center}
+.quick-wicket-players{display:grid;gap:8px}
+.wicket-player-chip{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid #d9e5e2;border-radius:11px;background:#f9fbfa;color:#24413c;text-align:left}
+.wicket-player-chip small{font-size:9px;font-weight:950;letter-spacing:1px;color:#81948e}
+.wicket-player-chip strong{font-size:14px}
+.wicket-player-chip.selected{border-color:#0c9285;background:#e9f7f2;box-shadow:inset 0 0 0 1px #0c9285}
+.quick-popup-hint{margin:12px 0 2px;color:#778983;font-size:10px;line-height:1.45}
+.quick-popup button:focus-visible{outline:3px solid #f2c45f;outline-offset:2px}
+
+/* Tournament-wide individual leaderboards. */
+.metrics-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:12px 0 16px}
+.metrics-summary>div{display:flex;flex-direction:column;gap:5px;padding:13px 12px;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:var(--shadow)}
+.metrics-summary span{font-size:8px;font-weight:950;letter-spacing:1px;color:#82928d}
+.metrics-summary strong{font-size:23px;line-height:1;font-weight:1000;color:#0b6159;font-variant-numeric:tabular-nums}
+.metrics-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.metric-card{min-width:0;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow)}
+.metric-card-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:9px}
+.metric-card-heading .eyebrow{font-size:8px;margin-bottom:3px}
+.metric-card-heading h3{font-size:15px;margin:0}
+.metric-card-icon{width:33px;height:33px;flex:0 0 33px;border-radius:10px;background:#e9f6f1;color:#0b8175;display:grid;place-items:center;font-size:16px;font-weight:1000}
+.metric-leader-list{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.metric-leader{display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid #eef2f0}
+.metric-rank{width:23px;height:23px;flex:0 0 23px;border-radius:7px;background:#f0f5f3;color:#617770;display:grid;place-items:center;font-size:9px;font-weight:950}
+.metric-player{display:flex;flex:1;min-width:0;flex-direction:column;gap:2px}
+.metric-player strong{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.metric-player small{font-size:9px;color:#8a9994;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.metric-value{font-size:16px;color:#08786f;font-weight:1000;font-variant-numeric:tabular-nums}
+.metric-empty{padding:12px 0;border-top:1px solid #eef2f0;color:#899893;font-size:11px}
+.metrics-footnote{margin:12px 2px;color:#83928d;font-size:9px;line-height:1.5}
+@media(max-width:650px){
+  .quick-popup{padding:15px;border-radius:16px}
+  .quick-run-chips{gap:5px}
+  .quick-run-chip{border-radius:8px;font-size:15px}
+  .metrics-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .metrics-grid{grid-template-columns:1fr}
+}
