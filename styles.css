@@ -682,3 +682,12 @@ body.sheet-open{overflow:hidden}
   .metrics-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
   .metrics-grid{grid-template-columns:1fr}
 }
+
+
+/* Shareable tournament metrics action row. */
+.metrics-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.metrics-actions .btn{min-height:36px;padding:8px 11px;font-size:10px}
+@media(max-width:520px){
+  .metrics-actions{width:100%}
+  .metrics-actions .btn{flex:1}
+}
