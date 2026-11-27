@@ -3,6 +3,7 @@ import {
   deliveryNotation,
   inningsStats,
   currentBattingState,
+  currentWicketBatters,
   battingScorecard,
   bowlingScorecard,
   fallOfWickets,
@@ -1490,17 +1491,19 @@ function openWicket() {
   if (state.saving) return;
   const innings = currentInnings();
   if (!innings) return;
-  const current = currentBattingState(state.balls, innings.innings_no, currentLineup());
-  const currentIds = [current.strikerId, current.nonStrikerId].filter(Boolean);
+  // The crease dropdowns are authoritative: a replacement batter selected
+  // after the previous wicket may not exist in the last saved delivery yet.
+  const crease = currentWicketBatters(state.balls, innings.innings_no, currentLineup());
+  const currentIds = [crease.strikerId, crease.nonStrikerId].filter(Boolean);
   const choices = currentIds.map(id => state.players.find(player => player.id === id)).filter(Boolean);
   if (!choices.length) {
-    toast("Select the current batters before recording a wicket");
+    toast("Select the current batter(s) at the crease before recording a wicket");
     return;
   }
-  state.quickWicketBatterId = current.strikerId && choices.some(p => p.id === current.strikerId)
-    ? current.strikerId : choices[0].id;
+  state.quickWicketBatterId = crease.strikerId && choices.some(p => p.id === crease.strikerId)
+    ? crease.strikerId : choices[0].id;
   $("quickWicketPlayers").innerHTML = choices.map(player => {
-    const role = player.id === current.strikerId ? "STRIKER" : "NON-STRIKER";
+    const role = player.id === crease.strikerId ? "STRIKER" : "NON-STRIKER";
     return '<button type="button" class="wicket-player-chip ' +
       (player.id === state.quickWicketBatterId ? "selected" : "") +
       '" data-wicket-batter="' + esc(player.id) + '">' +
