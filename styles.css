@@ -691,3 +691,25 @@ body.sheet-open{overflow:hidden}
   .metrics-actions{width:100%}
   .metrics-actions .btn{flex:1}
 }
+
+
+/* Show the batting and bowling scorecards for every innings during a live match. */
+.innings-scorecards{display:grid;gap:16px}
+.innings-scorecard-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:2px;box-shadow:var(--shadow)}
+.innings-scorecard-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid #e9efed}
+.innings-scorecard-heading .eyebrow{display:flex;align-items:center;gap:6px}
+.innings-scorecard-heading h2{font-size:17px;margin:3px 0 0}
+.innings-score-total{font-size:26px;line-height:1;font-weight:1000;color:#0a6259;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.innings-score-total small{display:block;margin-top:5px;font-size:9px;line-height:1.2;color:#81918c;font-weight:800}
+.innings-scorecard-section{margin:10px 0}
+.innings-scorecard-section>h3{font-size:12px;margin:0 0 7px;color:#31534c}
+.innings-live-label{display:inline-flex;padding:3px 6px;border-radius:99px;background:#e3f6ec;color:#07805e;font-size:8px;font-weight:1000;letter-spacing:.7px}
+.innings-scorecard-card .scorecard-bottom-grid{margin-top:10px}
+.innings-scorecard-card .scorecard-bottom-grid .card{box-shadow:none;background:#f8fbfa}
+.innings-scorecard-card .data-table{min-width:520px}
+@media(max-width:650px){
+  .innings-scorecard-card{padding:10px}
+  .innings-scorecard-heading h2{font-size:15px}
+  .innings-score-total{font-size:23px}
+  .innings-scorecard-card .scorecard-bottom-grid{grid-template-columns:1fr}
+}
