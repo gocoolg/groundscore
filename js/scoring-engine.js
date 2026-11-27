@@ -1,6 +1,6 @@
-const BOWLER_WICKETS = new Set(["bowled", "caught", "lbw", "stumped", "hit wicket"]);
+const BOWLER_WICKETS = new Set(["bowled", "caught", "lbw", "stumped", "hit wicket", "wicket"]);
 const EXTRAS = new Set(["wide", "no-ball", "bye", "leg-bye"]);
-const WICKETS = new Set(["bowled", "caught", "lbw", "run out", "stumped", "hit wicket"]);
+const WICKETS = new Set(["bowled", "caught", "lbw", "run out", "stumped", "hit wicket", "wicket"]);
 
 export function isActiveDelivery(ball) {
   return !ball.voided_at;
@@ -145,7 +145,7 @@ export function buildDelivery(input) {
   const availableIncoming = battingPlayers.filter(p =>
     !dismissedBefore.has(p.id) && p.id !== striker && p.id !== nonStriker
   );
-  if (wicket && availableIncoming.length && (!incomingBatterId || !availableIncoming.some(p => p.id === incomingBatterId))) {
+  if (wicket && incomingBatterId && !availableIncoming.some(p => p.id === incomingBatterId)) {
     errors.push("Choose an eligible incoming batter.");
   }
   if (wicket && incomingBatterId && (incomingBatterId === striker || incomingBatterId === nonStriker || dismissedBefore.has(incomingBatterId))) {
