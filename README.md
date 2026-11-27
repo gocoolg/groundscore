@@ -25,7 +25,6 @@ GroundScore is a mobile-first cricket scoring and tournament platform for local 
 - [Tests and checks](#tests-and-checks)
 - [Deploy to GitHub Pages](#deploy-to-github-pages)
 - [Tournament deletion setup](#tournament-deletion-setup)
-- [Database maintenance](#database-maintenance)
 - [Current limitations](#current-limitations)
 - [Security notes](#security-notes)
 - [License](#license)
@@ -126,12 +125,9 @@ groundscore/
 ├── tests/
 │   └── scoring-engine.test.js
 ├── supabase/
-│   ├── add_coin_toss_columns.sql
-│   ├── migrations/
 │   ├── functions/
 │   │   └── delete-tournament/
 │   │       └── index.ts
-│   ├── reset_test_data.sql
 │   └── config.toml
 ├── .github/
 │   └── workflows/
@@ -176,24 +172,11 @@ The app reads these two values in the browser. A publishable key is intended for
 
 ### 3. Set up the database
 
-For a new Supabase project, open **Supabase Dashboard → SQL Editor**, paste the complete [`schema.sql`](schema.sql) file and run it.
+Open **Supabase Dashboard → SQL Editor**, paste the complete [`schema.sql`](schema.sql) file, and run it. **This is the only SQL file required for GroundScore setup.**
 
-The root schema creates the tournament, member, team, squad, match, player, innings and delivery tables. It also includes the current coin-toss columns, reusable player/scorer directories and live site-viewer presence counter. It is designed to be safe to re-run and preserves existing match data.
+The same file works for both new and existing projects. It creates the core tournament and scoring tables, indexes, Row Level Security policies and grants; adds coin-toss, delivery-tracking and generic-wicket support; creates and backfills the reusable player and scorer directories; sets up the live site-viewer heartbeat; and installs the restricted tournament-deletion RPC used by the Edge Function.
 
-If the project was set up using an older version of GroundScore, apply any feature migrations that have not yet been run:
-
-| Migration | Purpose |
-|---|---|
-| [`add_coin_toss_columns.sql`](supabase/add_coin_toss_columns.sql) | Adds coin-toss metadata to older match tables. |
-| [`20261123_player_directory.sql`](supabase/migrations/20261123_player_directory.sql) | Creates and backfills reusable player-name suggestions. |
-| [`20261124_scorer_directory.sql`](supabase/migrations/20261124_scorer_directory.sql) | Creates and backfills the separate scorer directory. |
-| [`20261127_simplified_wicket_and_metrics.sql`](supabase/migrations/20261127_simplified_wicket_and_metrics.sql) | Allows a generic `wicket` value for the quick wicket action. |
-| [`20261125_site_viewer_presence.sql`](supabase/migrations/20261125_site_viewer_presence.sql) | Adds a private heartbeat table and RPC for the homepage live viewer count. |
-| [`20261120_delete_tournament_admin.sql`](supabase/migrations/20261120_delete_tournament_admin.sql) | Creates the restricted database function used by the delete Edge Function. |
-| [`20261120_revoke_public_deletes.sql`](supabase/migrations/20261120_revoke_public_deletes.sql) | Revokes direct hard-delete privileges from the anonymous browser role. |
-
-Run each required SQL file in the Supabase SQL Editor. The migrations are safe to re-run where they use `IF NOT EXISTS`, `CREATE OR REPLACE` or policy replacement.
-
+The script is safe to run again: it uses conditional table/column/index creation, replaces policies and functions, and preserves existing tournament and match records. For an existing project, run the full file again rather than applying separate SQL snippets. It does not contain test-data cleanup or bulk-delete commands.
 ---
 
 ## Run locally
@@ -242,7 +225,7 @@ The published app URL is:
 
 **https://gocoolg.github.io/groundscore/**
 
-The static Pages deployment does not deploy Supabase database migrations or Edge Functions. Those are configured separately in Supabase.
+The static Pages deployment does not deploy the Supabase database schema or Edge Functions. Those are configured separately in Supabase.
 
 Every match has a unique, permanent URL using its match UUID (for example, `?match=<match-id>`). GroundScore updates the browser address automatically when a match opens, so refreshing or reopening the address restores that exact match and its latest score. Use the **Share** action to copy the same direct live-match URL. Back/forward navigation restores the previous tournament or match route.
 
@@ -252,14 +235,9 @@ Every match has a unique, permanent URL using its match UUID (for example, `?mat
 
 Tournament deletion is an administrative action. It is performed by the Supabase Edge Function, not directly by the browser.
 
-### 1. Apply the database migrations
+### 1. Apply the database setup
 
-Run both of these files in **Supabase Dashboard → SQL Editor**:
-
-- [`20261120_delete_tournament_admin.sql`](supabase/migrations/20261120_delete_tournament_admin.sql)
-- [`20261120_revoke_public_deletes.sql`](supabase/migrations/20261120_revoke_public_deletes.sql)
-
-The database function checks the exact tournament name and can only be executed by the Supabase `service_role`.
+Run the single root [`schema.sql`](schema.sql) file in **Supabase Dashboard → SQL Editor**. It creates the `delete_tournament_admin` RPC and restricts execution to the `service_role`; it also revokes direct hard-delete privileges from the anonymous browser role.
 
 ### 2. Configure a strong password as a Supabase secret
 
@@ -296,16 +274,6 @@ In GroundScore, open a tournament and go to **Members → Danger Zone → Delete
 The operation deletes the tournament's matches first, which cascades to innings, match players and deliveries. It then deletes the tournament, which cascades to its members, teams and saved team players.
 
 The Edge Function is not part of GitHub Pages deployment and must be deployed separately.
-
----
-
-## Database maintenance
-
-### Inspect test data
-
-Run [`supabase/reset_test_data.sql`](supabase/reset_test_data.sql) in Supabase SQL Editor to review counts of tournaments, members, teams, saved squad players, matches, match players, innings and deliveries.
-
-The script is **read-only by default**. It includes a commented destructive block for clearing all matches and tournaments. Only uncomment and run that block if the project contains disposable test data exclusively. Back up anything important first.
 
 ---
 
