@@ -209,3 +209,22 @@ test("chase is complete as soon as target is reached", () => {
   assert.equal(progress.runsRequired, 0);
   assert.equal(progress.reached, true);
 });
+
+
+test("generic wicket can be recorded without choosing a dismissal type or incoming batter", () => {
+  const b = delivery({ wicket: "wicket", dismissedBatsmanId: "a" });
+  assert.equal(b.wicket, "wicket");
+  assert.equal(b.dismissed_batsman_id, "a");
+  assert.equal(b.next_striker_id, null);
+  assert.equal(b.next_non_striker_id, "b");
+});
+
+test("generic wicket is credited to the current bowler", () => {
+  const rows = [{
+    innings_no: 1, over_number: 0, ball_number: 1,
+    bowler_id: "d", striker_id: "a", total_runs: 0, runs_off_bat: 0,
+    extra_type: null, wicket: "wicket", dismissed_batsman_id: "a"
+  }];
+  const figures = bowlingScorecard(rows, players, 1)[0];
+  assert.equal(figures.wickets, 1);
+});
