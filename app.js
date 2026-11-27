@@ -1652,36 +1652,61 @@ function htmlTable(headers, rows, emptyText) {
     "</tr></thead><tbody>" + rows.map(row => "<tr>" + row.map(cell => "<td>" + cell + "</td>").join("") + "</tr>").join("") + "</tbody></table>";
 }
 function renderScorecard() {
-  const innings = currentInnings();
-  if (!innings) return;
-  const batting = playersFor(innings.batting_team);
-  const bowling = playersFor(innings.bowling_team);
-  const batRows = battingScorecard(state.balls, batting, innings.innings_no);
-  const bowlRows = bowlingScorecard(state.balls, bowling, innings.innings_no);
-  $("battingScorecard").innerHTML = htmlTable(
-    ["Batter","Dismissal","R","B","4s","6s","SR"],
-    batRows.map(p => [esc(p.name), esc(p.dismissal), p.runs, p.balls, p.fours, p.sixes, p.strikeRate.toFixed(1)]),
-    "No batting figures yet."
-  );
-  $("bowlingScorecard").innerHTML = htmlTable(
-    ["Bowler","O","M","R","W","Eco"],
-    bowlRows.map(p => [esc(p.name), p.overs, p.maidens, p.runs, p.wickets, p.economy.toFixed(2)]),
-    "No bowling figures yet."
-  );
-  const stats = inningsStats(state.balls, innings.innings_no, state.match.overs);
-  const extras = stats.extras;
-  const extrasTotal = extras.wides + extras.noBalls + extras.byes + extras.legByes;
-  $("extrasSummary").innerHTML = [
-    ["Wides",extras.wides],["No-balls",extras.noBalls],["Byes",extras.byes],["Leg-byes",extras.legByes],["Total extras",extrasTotal]
-  ].map(row => '<div class="row"><span>' + esc(row[0]) + '</span><strong>' + row[1] + "</strong></div>").join("");
-  const fow = fallOfWickets(state.balls, innings.innings_no, state.players);
-  $("fallWickets").innerHTML = fow.length ? fow.map(item =>
-    '<div class="row"><span>' + item.wicket + " - " + item.score + '</span><strong>' + esc(item.batter) + " (" + item.overs + ")</strong></div>"
-  ).join("") : '<div class="empty">No wickets yet.</div>';
-  $("inningsSummary").innerHTML = state.innings.map(i => {
-    const s = inningsStats(state.balls, i.innings_no, state.match.overs);
-    return '<div class="innings-chip"><span>' + esc(teamName(i.batting_team)) + '</span><strong>' +
-      s.total + "/" + s.wickets + " · " + s.overs + " ov · RR " + s.runRateText + "</strong></div>";
+  if (!state.innings.length) return;
+  const orderedInnings = [...state.innings].sort((a,b) => Number(a.innings_no) - Number(b.innings_no));
+  $("inningsScorecards").innerHTML = orderedInnings.map(innings => {
+    const batting = playersFor(innings.batting_team);
+    const bowling = playersFor(innings.bowling_team);
+    const batRows = battingScorecard(state.balls, batting, innings.innings_no);
+    const bowlRows = bowlingScorecard(state.balls, bowling, innings.innings_no);
+    const stats = inningsStats(state.balls, innings.innings_no, state.match.overs);
+    const extras = stats.extras;
+    const extrasTotal = extras.wides + extras.noBalls + extras.byes + extras.legByes;
+    const fow = fallOfWickets(state.balls, innings.innings_no, state.players);
+    const isLive = Number(innings.innings_no) === Number(state.match.current_innings) &&
+      state.match.status === "live";
+    const inningsLabel = Number(innings.innings_no) === 1 ? "1ST INNINGS" : "2ND INNINGS";
+    const battingTable = htmlTable(
+      ["Batter","Dismissal","R","B","4s","6s","SR"],
+      batRows.map(p => [esc(p.name), esc(p.dismissal), p.runs, p.balls, p.fours, p.sixes, p.strikeRate.toFixed(1)]),
+      "No batting figures yet."
+    );
+    const bowlingTable = htmlTable(
+      ["Bowler","O","M","R","W","Eco"],
+      bowlRows.map(p => [esc(p.name), p.overs, p.maidens, p.runs, p.wickets, p.economy.toFixed(2)]),
+      "No bowling figures yet."
+    );
+    const extrasHtml = [
+      ["Wides",extras.wides],["No-balls",extras.noBalls],["Byes",extras.byes],
+      ["Leg-byes",extras.legByes],["Total extras",extrasTotal]
+    ].map(row => '<div class="row"><span>' + esc(row[0]) + '</span><strong>' + row[1] + "</strong></div>").join("");
+    const fowHtml = fow.length ? fow.map(item =>
+      '<div class="row"><span>' + item.wicket + " - " + item.score + '</span><strong>' +
+      esc(item.batter) + " (" + item.overs + ")</strong></div>"
+    ).join("") : '<div class="empty">No wickets yet.</div>';
+
+    return '<article class="innings-scorecard-card">' +
+      '<header class="innings-scorecard-heading"><div><span class="eyebrow">' + inningsLabel +
+      (isLive ? ' · <span class="innings-live-label">LIVE</span>' : '') +
+      '</span><h2>' + esc(teamName(innings.batting_team)) + '</h2></div>' +
+      '<strong class="innings-score-total">' + stats.total + '/' + stats.wickets +
+      '<small>' + stats.overs + ' overs · RR ' + stats.runRateText + '</small></strong></header>' +
+      '<div class="innings-scorecard-section"><h3>Batting</h3><div class="score-table-wrap">' + battingTable + '</div></div>' +
+      '<div class="innings-scorecard-section"><h3>Bowling</h3><div class="score-table-wrap">' + bowlingTable + '</div></div>' +
+      '<div class="scorecard-bottom-grid">' +
+        '<div class="card compact-card"><h3>Extras</h3>' + extrasHtml + '</div>' +
+        '<div class="card compact-card"><h3>Fall of wickets</h3>' + fowHtml + '</div>' +
+      '</div></article>';
+  }).join("");
+
+  $("inningsSummary").innerHTML = orderedInnings.map(innings => {
+    const stats = inningsStats(state.balls, innings.innings_no, state.match.overs);
+    const isLive = Number(innings.innings_no) === Number(state.match.current_innings) &&
+      state.match.status === "live";
+    return '<div class="innings-chip"><span>' +
+      (Number(innings.innings_no) === 1 ? "1st" : "2nd") + " · " + esc(teamName(innings.batting_team)) +
+      (isLive ? ' <b class="innings-live-label">LIVE</b>' : '') + '</span><strong>' +
+      stats.total + "/" + stats.wickets + " · " + stats.overs + " ov · RR " + stats.runRateText + "</strong></div>";
   }).join("");
 }
 function ballOutcome(ball) {
