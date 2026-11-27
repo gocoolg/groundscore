@@ -128,10 +128,12 @@ function updateBrowserRoute({ matchId = "", tournamentId = "", view = "" } = {})
   }
   if (url.href === window.location.href) return;
   const routeType = matchId ? "match" : tournamentId ? "tournament" : "home";
-  const method = window.history.state?.groundScoreRoute === routeType
+  const routeKey = matchId ? "match:" + matchId :
+    tournamentId ? "tournament:" + tournamentId : "home";
+  const method = window.history.state?.groundScoreRouteKey === routeKey
     ? "replaceState" : "pushState";
   window.history[method](
-    { ...(window.history.state || {}), groundScoreRoute: routeType },
+    { ...(window.history.state || {}), groundScoreRoute: routeType, groundScoreRouteKey: routeKey },
     "",
     url
   );
