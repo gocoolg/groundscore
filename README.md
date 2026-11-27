@@ -238,6 +238,7 @@ Tournament deletion is an administrative action. It is performed by the Supabase
 ### 1. Apply the database setup
 
 Run the single root [`schema.sql`](schema.sql) file in **Supabase Dashboard → SQL Editor**. It creates the `delete_tournament_admin` RPC and restricts execution to the `service_role`; it also revokes direct hard-delete privileges from the anonymous browser role.
+
 ### 2. Configure a strong password as a Supabase secret
 
 From the repository root:
