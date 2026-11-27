@@ -1266,16 +1266,23 @@ function renderScore() {
   const hasOpeningSelection = hasStrikerSelection &&
     (soloBatterMode || (hasNonStrikerSelection && $("striker").value !== $("nonStriker").value)) &&
     !!$("bowler").value;
-  $("lineupHint").textContent = !scorer ? "Join this tournament to score. You are viewing as a spectator." :
-    (allOut ? "ALL OUT — innings complete." :
-    (soloBatterMode
-      ? (current.needsNewBowler && !current.bowlerId
-        ? "LAST BATTER — select a different bowler to continue."
-        : (needsBatterConfirm ? "LAST BATTER — confirm to continue batting alone." : "LAST BATTER — solo batting is enabled."))
-      : (current.needsNewBowler && !current.bowlerId ? "OVER COMPLETE — select a different bowler to continue." :
-      (needsBatterConfirm ? "NEW BATTER — check the batting pair and confirm before the next ball." :
-      (activeBalls(innings.innings_no).length === 0 ? "Choose the opening pair and bowler, then confirm." :
-      (current.needsNewBowler ? "New bowler selected ✓" : "Scoring as " + scorer)))));
+  let lineupHint = "";
+  if (!scorer) lineupHint = "Join this tournament to score. You are viewing as a spectator.";
+  else if (allOut) lineupHint = "ALL OUT — innings complete.";
+  else if (soloBatterMode) {
+    if (current.needsNewBowler && !current.bowlerId) lineupHint = "LAST BATTER — select a different bowler to continue.";
+    else if (needsBatterConfirm) lineupHint = "LAST BATTER — confirm to continue batting alone.";
+    else lineupHint = "LAST BATTER — solo batting is enabled.";
+  } else if (current.needsNewBowler && !current.bowlerId) {
+    lineupHint = "OVER COMPLETE — select a different bowler to continue.";
+  } else if (needsBatterConfirm) {
+    lineupHint = "NEW BATTER — check the batting pair and confirm before the next ball.";
+  } else if (activeBalls(innings.innings_no).length === 0) {
+    lineupHint = "Choose the opening pair and bowler, then confirm.";
+  } else {
+    lineupHint = current.needsNewBowler ? "New bowler selected ✓" : "Scoring as " + scorer;
+  }
+  $("lineupHint").textContent = lineupHint;
   $("confirmLineupBtn").setAttribute("aria-label", state.lineupConfirmed ? "Players confirmed" :
     (soloBatterMode ? "Confirm last batter" : (needsBatterConfirm ? "Confirm new batters" : "Confirm players")));
   $("confirmLineupBtn").title = state.lineupConfirmed ? "Players confirmed" :
