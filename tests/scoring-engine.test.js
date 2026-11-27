@@ -277,9 +277,9 @@ test("last remaining batter can continue scoring alone without a non-striker", (
   assert.equal(soloRun.ball.runs_off_bat, 3);
   assert.equal(soloRun.ball.total_runs, 3);
   assert.equal(soloRun.ball.striker_id, "b");
-  assert.equal(soloRun.ball.non_striker_id, "");
+  assert.equal(soloRun.ball.non_striker_id, null);
   assert.equal(soloRun.ball.next_striker_id, "b");
-  assert.equal(soloRun.ball.next_non_striker_id, "");
+  assert.equal(soloRun.ball.next_non_striker_id, null);
 });
 
 test("last batter stays on strike after odd runs and legal over end", () => {
@@ -308,7 +308,7 @@ test("last batter stays on strike after odd runs and legal over end", () => {
   assert.equal(next.ok, true, next.errors?.join("; "));
   assert.equal(next.ball.ball_number, 6);
   assert.equal(next.ball.next_striker_id, "b");
-  assert.equal(next.ball.next_non_striker_id, "");
+  assert.equal(next.ball.next_non_striker_id, null);
   const afterOverEnd = currentBattingState([...rows, next.ball], 1);
   assert.equal(afterOverEnd.needsNewBowler, true);
   assert.equal(afterOverEnd.strikerId, "b");
