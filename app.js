@@ -10,7 +10,7 @@ import {
   matchResult,
   chaseProgress,
   tournamentStandings
-} from "./js/scoring-engine.js?v=gs-20261127-nullable-batter-ids";
+} from "./js/scoring-engine.js?v=gs-20261127-match-routing";
 
 const cfg = window.GROUNDSCORE_CONFIG || {};
 const configured = !!(cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY);
@@ -117,6 +117,52 @@ function setBatterSelection(changed) {
 }
 
 function overText(n) { return Math.floor(n / 6) + "." + (n % 6); }
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function updateBrowserRoute({ matchId = "", tournamentId = "", view = "" } = {}) {
+  const url = new URL(window.location.href);
+  ["match", "tournament", "view"].forEach(key => url.searchParams.delete(key));
+  if (matchId) url.searchParams.set("match", matchId);
+  else if (tournamentId) {
+    url.searchParams.set("tournament", tournamentId);
+    if (view === "metrics") url.searchParams.set("view", "metrics");
+  }
+  if (url.href === window.location.href) return;
+  const routeType = matchId ? "match" : tournamentId ? "tournament" : "home";
+  const method = window.history.state?.groundScoreRoute === routeType
+    ? "replaceState" : "pushState";
+  window.history[method](
+    { ...(window.history.state || {}), groundScoreRoute: routeType },
+    "",
+    url
+  );
+}
+function getMatchShareUrl(matchId) {
+  const url = new URL(window.location.href);
+  ["match", "tournament", "view"].forEach(key => url.searchParams.delete(key));
+  url.searchParams.set("match", matchId);
+  return url.toString();
+}
+async function restoreRouteFromAddressBar() {
+  const params = new URLSearchParams(window.location.search);
+  const matchId = params.get("match");
+  const tournamentId = params.get("tournament");
+  const view = params.get("view");
+  if (matchId) {
+    if (!UUID_PATTERN.test(matchId)) throw new Error("This match link is invalid.");
+    await loadMatch(matchId);
+    return;
+  }
+  if (tournamentId) {
+    if (!UUID_PATTERN.test(tournamentId)) throw new Error("This tournament link is invalid.");
+    state.selectedTournamentTab = view === "metrics" ? "metrics" : "matches";
+    await openTournament(tournamentId);
+    return;
+  }
+  stopPolling();
+  state.match = null;
+  state.tournament = null;
+  await loadHome();
+}
 function showView(id) {
   if (id !== "scoreView" && state.scoreboardOpen) closeScoreboardMode();
   ["homeView","tournamentCreateView","tournamentListView","joinView","tournamentView","matchSetupView","scoreView","summaryView"]
@@ -305,6 +351,9 @@ function setActiveScoreTab(tab) {
 }
 function setActiveTournamentTab(tab) {
   state.selectedTournamentTab = tab;
+  if (state.tournament && !state.match) {
+    updateBrowserRoute({ tournamentId: state.tournament.id, view: tab });
+  }
   document.querySelectorAll("[data-tournament-tab]").forEach(button =>
     button.classList.toggle("active", button.dataset.tournamentTab === tab)
   );
@@ -376,34 +425,22 @@ async function init() {
   startSiteViewerCount();
   await loadPlayerDirectory();
   await loadScorerDirectory();
-  const route = new URLSearchParams(window.location.search);
-  const sharedMatch = route.get("match");
-  const sharedTournament = route.get("tournament");
-  const sharedView = route.get("view");
-
-  // Match links retain priority; metrics links open directly inside a tournament.
-  if (sharedMatch) {
-    try { await loadMatch(sharedMatch); return; }
+  if (new URLSearchParams(window.location.search).has("match") ||
+      new URLSearchParams(window.location.search).has("tournament")) {
+    try { await restoreRouteFromAddressBar(); return; }
     catch (error) {
       $("configNotice").classList.remove("hidden");
-      $("configNotice").textContent = "Could not load this match: " + error.message;
-    }
-  } else if (sharedTournament) {
-    try {
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sharedTournament)) {
-        throw new Error("The shared tournament link is invalid.");
-      }
-      state.selectedTournamentTab = sharedView === "metrics" ? "metrics" : "matches";
-      await openTournament(sharedTournament);
+      $("configNotice").textContent = "Could not open this link: " + error.message;
       return;
-    } catch (error) {
-      $("configNotice").classList.remove("hidden");
-      $("configNotice").textContent = "Could not load the shared tournament: " + error.message;
     }
   }
   await loadHome();
 }
 async function loadHome() {
+  stopPolling();
+  state.match = null;
+  state.tournament = null;
+  updateBrowserRoute();
   try {
     const rows = await api("tournaments?select=*&order=event_date.desc.nullslast,created_at.desc");
     renderTournamentCards($("homeTournaments"), rows.slice(0, 8), false);
@@ -586,9 +623,15 @@ async function deleteTournamentPermanently() {
 }
 
 async function openTournament(tournamentId) {
+  stopPolling();
+  state.match = null;
   state.tournament = (await api("tournaments?id=eq." + tournamentId + "&select=*"))[0];
   if (!state.tournament) throw new Error("Tournament not found.");
   await refreshTournament();
+  updateBrowserRoute({
+    tournamentId,
+    view: state.selectedTournamentTab || "matches"
+  });
   showView("tournamentView");
   setActiveTournamentTab(state.selectedTournamentTab || "matches");
 }
@@ -949,10 +992,12 @@ function stopPolling() {
   state.poll = null;
 }
 async function loadMatch(matchId) {
+  if (!UUID_PATTERN.test(String(matchId || ""))) throw new Error("This match link is invalid.");
   stopPolling();
   const matchRows = await api("matches?id=eq." + matchId + "&select=*");
   state.match = matchRows[0];
   if (!state.match) throw new Error("Match not found.");
+  updateBrowserRoute({ matchId: state.match.id });
   if (state.match.tournament_id) {
     const tournaments = await api("tournaments?id=eq." + state.match.tournament_id + "&select=*");
     state.tournament = tournaments[0] || null;
@@ -1631,14 +1676,14 @@ async function finishMatch(alreadyConfirmed) {
   toast("Match completed");
 }
 async function shareMatch() {
-  const url = new URL(window.location.href);
-  url.searchParams.delete("tournament");
-  url.searchParams.delete("view");
-  url.searchParams.set("match", state.match.id);
+  if (!state.match?.id) return;
+  const url = getMatchShareUrl(state.match.id);
   try {
-    await navigator.clipboard.writeText(url.toString());
-    toast("Live score link copied");
-  } catch (_) { window.prompt("Copy the live score link:", url.toString()); }
+    await navigator.clipboard.writeText(url);
+    toast("Live match link copied — it will reopen this match after refresh");
+  } catch (_) {
+    window.prompt("Copy the live match link:", url);
+  }
 }
 async function shareTournamentMetrics() {
   if (!state.tournament?.id) return;
@@ -2028,6 +2073,12 @@ async function backToTournament() {
 }
 
 function attachEvents() {
+  window.addEventListener("popstate", () => {
+    restoreRouteFromAddressBar().catch(error => {
+      $("configNotice").classList.remove("hidden");
+      $("configNotice").textContent = "Could not restore this page: " + error.message;
+    });
+  });
   bind("startTournamentBtn","click",() => showView("tournamentCreateView"));
   bind("joinTournamentBtn","click",() => withLoader("Finding tournaments…", listTournaments).catch(showError));
   bind("reloadHomeBtn","click",() => withLoader("Refreshing the ground…", loadHome).catch(showError));
