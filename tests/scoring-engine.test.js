@@ -371,3 +371,36 @@ test("wicket popup never offers a batter already dismissed, even if still select
   });
   assert.deepEqual(crease, { strikerId: "", nonStrikerId: "b" });
 });
+
+
+test("last batter can score no-ball with four additional runs using nullable UUID fields", () => {
+  const firstWicket = buildDelivery({
+    matchId: "match-1", inningsNo: 1, balls: [], players,
+    battingTeam: "team1", bowlingTeam: "team2", oversLimit: 10,
+    strikerId: "a", nonStrikerId: "b", bowlerId: "d",
+    scorerName: "Scorer", wicket: "wicket", dismissedBatsmanId: "a"
+  });
+  const secondWicket = buildDelivery({
+    matchId: "match-1", inningsNo: 1, balls: [firstWicket.ball], players,
+    battingTeam: "team1", bowlingTeam: "team2", oversLimit: 10,
+    strikerId: "c", nonStrikerId: "b", bowlerId: "d",
+    scorerName: "Scorer", wicket: "wicket", dismissedBatsmanId: "c"
+  });
+  assert.equal(firstWicket.ok, true, firstWicket.errors?.join("; "));
+  assert.equal(secondWicket.ok, true, secondWicket.errors?.join("; "));
+
+  const soloNoBall = buildDelivery({
+    matchId: "match-1", inningsNo: 1, balls: [firstWicket.ball, secondWicket.ball], players,
+    battingTeam: "team1", bowlingTeam: "team2", oversLimit: 10,
+    strikerId: "b", nonStrikerId: "", bowlerId: "e",
+    scorerName: "Scorer", extraType: "no-ball", extraRuns: 4
+  });
+  assert.equal(soloNoBall.ok, true, soloNoBall.errors?.join("; "));
+  assert.equal(soloNoBall.ball.total_runs, 5);
+  assert.equal(soloNoBall.ball.extra_runs, 5);
+  assert.equal(soloNoBall.ball.no_ball_runs, 5);
+  assert.equal(soloNoBall.ball.runs_off_bat, 0);
+  assert.equal(soloNoBall.ball.non_striker_id, null);
+  assert.equal(soloNoBall.ball.next_non_striker_id, null);
+  assert.equal(soloNoBall.ball.next_striker_id, "b");
+});
