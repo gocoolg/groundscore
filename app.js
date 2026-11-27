@@ -10,7 +10,7 @@ import {
   matchResult,
   chaseProgress,
   tournamentStandings
-} from "./js/scoring-engine.js";
+} from "./js/scoring-engine.js?v=gs-20261127-wicket-choice";
 
 const cfg = window.GROUNDSCORE_CONFIG || {};
 const configured = !!(cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY);
