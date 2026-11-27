@@ -1438,7 +1438,9 @@ function openWicket() {
   $("quickWicketPopup").classList.remove("hidden");
 }
 function selectQuickWicketBatter(playerId) {
-  if (!playerId || !$("quickWicketPlayers").querySelector('[data-wicket-batter="' + CSS.escape(playerId) + '"]')) return;
+  const matchingButton = [...$("quickWicketPlayers").querySelectorAll("[data-wicket-batter]")]
+    .find(button => button.dataset.wicketBatter === playerId);
+  if (!matchingButton) return;
   state.quickWicketBatterId = playerId;
   $("quickWicketPlayers").querySelectorAll("[data-wicket-batter]").forEach(button =>
     button.classList.toggle("selected", button.dataset.wicketBatter === playerId)
@@ -1793,10 +1795,23 @@ async function renderStandings() {
     "No completed league matches yet."
   );
 }
+async function fetchTournamentMetricRows(table, matchFilter, orderBy = "") {
+  const allRows = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    let path = table + "?match_id=" + matchFilter + "&select=*&limit=" + pageSize + "&offset=" + offset;
+    if (orderBy) path += "&order=" + orderBy;
+    const page = await api(path);
+    allRows.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return allRows;
+}
 async function renderTournamentMetrics() {
   const target = $("tournamentMetrics");
   target.innerHTML = '<div class="skeleton">Calculating tournament metrics…</div>';
-  const matches = state.tournamentMatches || [];
+  const matches = await api("matches?tournament_id=eq." + state.tournament.id + "&select=*&order=created_at.asc");
+  state.tournamentMatches = matches;
   if (!matches.length) {
     target.innerHTML = '<div class="empty">No matches yet. Tournament metrics will appear after the first match.</div>';
     return;
@@ -1808,8 +1823,8 @@ async function renderTournamentMetrics() {
   }
   const matchFilter = "in.(" + matchIds.join(",") + ")";
   const [balls, players] = await Promise.all([
-    api("balls?match_id=" + matchFilter + "&select=*&order=delivery_number.asc&limit=10000"),
-    api("players?match_id=" + matchFilter + "&select=*&limit=10000")
+    fetchTournamentMetricRows("balls", matchFilter, "delivery_number.asc"),
+    fetchTournamentMetricRows("players", matchFilter)
   ]);
   const matchById = new Map(matches.map(match => [match.id, match]));
   const playerByMatchId = new Map();
