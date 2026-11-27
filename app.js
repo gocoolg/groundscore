@@ -27,7 +27,8 @@ const state = {
   scoreboardOpen: false, scoreboardWakeLock: null, scoreboardWakeEnabled: false,
   scoreboardFullscreenEntered: false,
   tournamentMatches: [],
-  quickExtraType: "wide", quickExtraRuns: 0, quickWicketBatterId: ""
+  quickExtraType: "wide", quickExtraRuns: 0, quickWicketBatterId: "",
+  soloBatterMode: false
 };
 
 function esc(value) {
@@ -1207,12 +1208,20 @@ function renderScore() {
   // After a wicket, the engine intentionally leaves the dismissed end blank.
   // Preserve any replacement the scorer has selected in the dropdown, but never
   // fall back to the dismissed batter from the previous delivery.
+  const remainingBatters = batting.filter(player => !dismissedBatterIds.has(player.id));
+  const soloBatterMode = remainingBatters.length === 1;
   let strikerSelection = isAvailableBatter(current.strikerId)
     ? current.strikerId
     : (isAvailableBatter(opening.strikerId) ? opening.strikerId : "");
   let nonStrikerSelection = isAvailableBatter(current.nonStrikerId)
     ? current.nonStrikerId
     : (isAvailableBatter(opening.nonStrikerId) ? opening.nonStrikerId : "");
+
+  if (soloBatterMode) {
+    // Last eligible batter is promoted to the striker slot; partner selection is not required.
+    strikerSelection = remainingBatters[0].id;
+    nonStrikerSelection = "";
+  }
   if (strikerSelection && nonStrikerSelection && strikerSelection === nonStrikerSelection) {
     // Repair invalid legacy/current UI state before it can be confirmed.
     nonStrikerSelection = "";
@@ -1221,11 +1230,14 @@ function renderScore() {
   const strikerOptions = batting.filter(player =>
     player.id !== nonStrikerSelection && !dismissedBatterIds.has(player.id)
   );
-  const nonStrikerOptions = batting.filter(player =>
+  const nonStrikerOptions = soloBatterMode ? [] : batting.filter(player =>
     player.id !== strikerSelection && !dismissedBatterIds.has(player.id)
   );
   fillSelect($("striker"), strikerOptions, strikerSelection, "Select striker");
-  fillSelect($("nonStriker"), nonStrikerOptions, nonStrikerSelection, "Select non-striker");
+  fillSelect($("nonStriker"), nonStrikerOptions, nonStrikerSelection,
+    soloBatterMode ? "Not required — last batter" : "Select non-striker");
+  $("nonStriker").disabled = soloBatterMode;
+  state.soloBatterMode = soloBatterMode;
   const availableBowlers = current.needsNewBowler ? bowling.filter(p => p.id !== current.previousOverBowlerId) : bowling;
   fillSelect($("bowler"), availableBowlers, current.bowlerId || opening.bowlerId, current.needsNewBowler ? "Choose new bowler" : "Select bowler");
 
@@ -1237,27 +1249,37 @@ function renderScore() {
   state.current = current;
   $("coinResultLarge").textContent = state.match.toss_result ? state.match.toss_result.toUpperCase() : "TOSS";
   const scorer = localScorer();
-  const allOut = stats.wickets >= Math.max(1, batting.length - 1);
+  // The final remaining batter may continue alone; innings ends on their wicket.
+  const allOut = stats.wickets >= Math.max(1, batting.length);
   const oversDone = stats.legalBalls >= Number(state.match.overs) * 6;
   const chaseDone = target !== null && stats.total >= target;
   const closed = allOut || oversDone || chaseDone;
   const canScore = !!scorer && !closed && state.match.status === "live";
   $("stickyStriker").textContent = playerName(current.strikerId || $("striker").value);
-  $("stickyNonStriker").textContent = playerName(current.nonStrikerId || $("nonStriker").value);
+  $("stickyNonStriker").textContent = soloBatterMode ? "— (last batter)" : playerName(current.nonStrikerId || $("nonStriker").value);
   $("stickyBowler").textContent = playerName(current.bowlerId || $("bowler").value);
   $("coinResultLarge").textContent = state.match.toss_result ? state.match.toss_result.toUpperCase() : "TOSS";
   $("ballText").textContent = current.overNumber + "." + current.ballNumber + " · " + (current.needsNewBowler ? "New over — choose bowler" : "Next delivery");
-  const hasOpeningSelection = !!($("striker").value && $("nonStriker").value &&
-    $("striker").value !== $("nonStriker").value && $("bowler").value);
   const needsBatterConfirm = state.pendingBatterReview;
+  const hasStrikerSelection = !!$("striker").value;
+  const hasNonStrikerSelection = !!$("nonStriker").value;
+  const hasOpeningSelection = hasStrikerSelection &&
+    (soloBatterMode || (hasNonStrikerSelection && $("striker").value !== $("nonStriker").value)) &&
+    !!$("bowler").value;
   $("lineupHint").textContent = !scorer ? "Join this tournament to score. You are viewing as a spectator." :
-    (current.needsNewBowler && !current.bowlerId ? "OVER COMPLETE — select a different bowler to continue." :
-    (needsBatterConfirm ? "NEW BATTER — check the batting pair and confirm before the next ball." :
-    (activeBalls(innings.innings_no).length === 0 ? "Choose the opening pair and bowler, then confirm." :
-    (current.needsNewBowler ? "New bowler selected ✓" : "Scoring as " + scorer))));
+    (allOut ? "ALL OUT — innings complete." :
+    (soloBatterMode
+      ? (current.needsNewBowler && !current.bowlerId
+        ? "LAST BATTER — select a different bowler to continue."
+        : (needsBatterConfirm ? "LAST BATTER — confirm to continue batting alone." : "LAST BATTER — solo batting is enabled."))
+      : (current.needsNewBowler && !current.bowlerId ? "OVER COMPLETE — select a different bowler to continue." :
+      (needsBatterConfirm ? "NEW BATTER — check the batting pair and confirm before the next ball." :
+      (activeBalls(innings.innings_no).length === 0 ? "Choose the opening pair and bowler, then confirm." :
+      (current.needsNewBowler ? "New bowler selected ✓" : "Scoring as " + scorer)))));
   $("confirmLineupBtn").setAttribute("aria-label", state.lineupConfirmed ? "Players confirmed" :
-    (needsBatterConfirm ? "Confirm new batters" : "Confirm players"));
-  $("confirmLineupBtn").title = state.lineupConfirmed ? "Players confirmed" : "Confirm selected players";
+    (soloBatterMode ? "Confirm last batter" : (needsBatterConfirm ? "Confirm new batters" : "Confirm players")));
+  $("confirmLineupBtn").title = state.lineupConfirmed ? "Players confirmed" :
+    (soloBatterMode ? "Confirm the last batter to continue alone" : "Confirm selected players");
   $("confirmLineupBtn").classList.toggle("confirmed", state.lineupConfirmed);
   $("confirmLineupBtn").classList.toggle("needs-attention", needsBatterConfirm || (!state.lineupConfirmed && hasOpeningSelection));
   $("lineupStatusDot").classList.toggle("confirmed", state.lineupConfirmed);
@@ -1266,9 +1288,10 @@ function renderScore() {
   $("scoreSavingIndicator").classList.toggle("hidden", !state.saving);
   $("bowler").classList.toggle("needs-attention", !!(current.needsNewBowler && !current.bowlerId));
   $("striker").classList.toggle("needs-attention", needsBatterConfirm);
-  $("nonStriker").classList.toggle("needs-attention", needsBatterConfirm);
+  $("nonStriker").classList.toggle("needs-attention", needsBatterConfirm && !soloBatterMode);
   const canSubmit = canScore && state.lineupConfirmed && !needsBatterConfirm &&
-    !!$("striker").value && !!$("nonStriker").value && !!$("bowler").value && !state.saving;
+    !!$("striker").value && (soloBatterMode || !!$("nonStriker").value) &&
+    !!$("bowler").value && !state.saving;
   document.querySelectorAll("[data-quick-run],#openExtrasBtn,#openWicketBtn,#confirmQuickExtrasBtn,#confirmQuickWicketBtn")
     .forEach(button => { button.disabled = !canSubmit; });
   $("undoBtn").disabled = !scorer || !activeBalls(innings.innings_no).length || state.saving;
@@ -1287,14 +1310,18 @@ function syncScoreStickyOffset() {
 }
 function confirmLineup() {
   if (!localScorer()) { toast("Join the tournament before scoring"); return; }
-  if (!$("striker").value || !$("nonStriker").value || !$("bowler").value ||
-      $("striker").value === $("nonStriker").value) {
-    toast("Choose two different batters and a bowler");
+  const hasStriker = !!$("striker").value;
+  const hasNonStriker = !!$("nonStriker").value;
+  const validBattingPair = state.soloBatterMode
+    ? hasStriker && !hasNonStriker
+    : hasStriker && hasNonStriker && $("striker").value !== $("nonStriker").value;
+  if (!validBattingPair || !$("bowler").value) {
+    toast(state.soloBatterMode ? "Choose the last batter and a bowler" : "Choose two different batters and a bowler");
     return;
   }
   state.lineupConfirmed = true;
   state.pendingBatterReview = false;
-  toast("Players confirmed");
+  toast(state.soloBatterMode ? "Last batter confirmed — solo batting enabled" : "Players confirmed");
   renderScore();
 }
 function renderOverStrip(inningsNo) {
