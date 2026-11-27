@@ -244,7 +244,7 @@ The published app URL is:
 
 The static Pages deployment does not deploy Supabase database migrations or Edge Functions. Those are configured separately in Supabase.
 
-To share a live match, open it in GroundScore and use the **Share** action to copy its direct match URL.
+Every match has a unique, permanent URL using its match UUID (for example, `?match=<match-id>`). GroundScore updates the browser address automatically when a match opens, so refreshing or reopening the address restores that exact match and its latest score. Use the **Share** action to copy the same direct live-match URL. Back/forward navigation restores the previous tournament or match route.
 
 ---
 
