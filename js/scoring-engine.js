@@ -112,15 +112,24 @@ export function buildDelivery(input) {
   const rows = orderedBalls(balls);
   const active = rows.filter(b => b.innings_no === inningsNo && isActiveDelivery(b));
   const state = currentBattingState(rows, inningsNo, { strikerId, nonStrikerId, bowlerId });
-  const striker = strikerId || state.strikerId;
-  const nonStriker = nonStrikerId || state.nonStrikerId;
-  const bowler = bowlerId || state.bowlerId;
+  // Nullish fallback preserves an explicitly empty non-striker slot in last-batter mode.
+  const striker = strikerId ?? state.strikerId;
+  const nonStriker = nonStrikerId ?? state.nonStrikerId;
+  const bowler = bowlerId ?? state.bowlerId;
   const bat = Number(batRuns);
   const extras = Number(extraRuns);
   const errors = [];
+  const battingPlayers = players.filter(p => p.team === input.battingTeam);
+  const bowlingPlayers = players.filter(p => p.team === input.bowlingTeam);
+  const dismissedBefore = new Set(active.filter(b => b.wicket && b.dismissed_batsman_id).map(b => b.dismissed_batsman_id));
+  const availableBatters = battingPlayers.filter(p => !dismissedBefore.has(p.id));
+  const soloBatterMode = availableBatters.length === 1 &&
+    availableBatters[0].id === striker && !nonStriker;
   if (!matchId || !inningsNo) errors.push("Match and innings are required.");
   if (!scorerName || !scorerName.trim()) errors.push("Select a scorer name.");
-  if (!striker || !nonStriker || !bowler) errors.push("Select the striker, non-striker and current bowler.");
+  if (!striker || (!nonStriker && !soloBatterMode) || !bowler) {
+    errors.push(soloBatterMode ? "Select the last batter and current bowler." : "Select the striker, non-striker and current bowler.");
+  }
   if (striker && nonStriker && striker === nonStriker) errors.push("Striker and non-striker must be different players.");
   if (![0,1,2,3,4,5,6].includes(bat)) errors.push("Runs off bat must be between 0 and 6.");
   if (!Number.isInteger(extras) || extras < 0 || extras > 6) errors.push("Additional runs must be between 0 and 6.");
@@ -134,11 +143,8 @@ export function buildDelivery(input) {
   if (wicket && wicket !== "run out" && (bat > 0 || extras > 0)) errors.push("For this dismissal, record a dot ball. Use run-out for completed runs.");
   if (wicket && ![striker, nonStriker].includes(dismissedBatsmanId)) errors.push("Choose which batter was dismissed.");
   if (!wicket && dismissedBatsmanId) errors.push("Dismissed batter is only valid when a wicket is selected.");
-  const dismissedBefore = new Set(active.filter(b => b.wicket && b.dismissed_batsman_id).map(b => b.dismissed_batsman_id));
   if (striker && dismissedBefore.has(striker)) errors.push("The selected striker has already been dismissed.");
   if (nonStriker && dismissedBefore.has(nonStriker)) errors.push("The selected non-striker has already been dismissed.");
-  const battingPlayers = players.filter(p => p.team === input.battingTeam);
-  const bowlingPlayers = players.filter(p => p.team === input.bowlingTeam);
   if (striker && !battingPlayers.some(p => p.id === striker)) errors.push("Striker must belong to the batting team.");
   if (nonStriker && !battingPlayers.some(p => p.id === nonStriker)) errors.push("Non-striker must belong to the batting team.");
   if (bowler && input.bowlingTeam && !bowlingPlayers.some(p => p.id === bowler)) errors.push("Bowler must belong to the bowling team.");
@@ -153,7 +159,9 @@ export function buildDelivery(input) {
   }
   const currentStats = inningsStats(rows, inningsNo, oversLimit);
   if (oversLimit && currentStats.legalBalls >= oversLimit * 6) errors.push("The over limit has been reached.");
-  if (battingPlayers.length && currentStats.wickets >= battingPlayers.length - 1) errors.push("The batting side is all out.");
+  if (battingPlayers.length && currentStats.wickets >= battingPlayers.length - 1 && !soloBatterMode) {
+    errors.push("The batting side is all out.");
+  }
   if (state.needsNewBowler && bowler && bowler === state.previousOverBowlerId) errors.push("The same bowler cannot bowl consecutive overs.");
   if (errors.length) return { ok: false, errors };
 
@@ -167,8 +175,9 @@ export function buildDelivery(input) {
 
   let nextStriker = striker;
   let nextNonStriker = nonStriker;
-  if (completedRuns % 2) [nextStriker, nextNonStriker] = [nextNonStriker, nextStriker];
-  if (legal && ballNo === 6) [nextStriker, nextNonStriker] = [nextNonStriker, nextStriker];
+  // A lone batter remains on strike; there is no partner to rotate ends with.
+  if (!soloBatterMode && completedRuns % 2) [nextStriker, nextNonStriker] = [nextNonStriker, nextStriker];
+  if (!soloBatterMode && legal && ballNo === 6) [nextStriker, nextNonStriker] = [nextNonStriker, nextStriker];
   if (wicket) {
     if (nextStriker === dismissedBatsmanId) nextStriker = incomingBatterId || null;
     else if (nextNonStriker === dismissedBatsmanId) nextNonStriker = incomingBatterId || null;
