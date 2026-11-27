@@ -374,12 +374,29 @@ async function init() {
   startSiteViewerCount();
   await loadPlayerDirectory();
   await loadScorerDirectory();
-  const sharedMatch = new URLSearchParams(window.location.search).get("match");
+  const route = new URLSearchParams(window.location.search);
+  const sharedMatch = route.get("match");
+  const sharedTournament = route.get("tournament");
+  const sharedView = route.get("view");
+
+  // Match links retain priority; metrics links open directly inside a tournament.
   if (sharedMatch) {
     try { await loadMatch(sharedMatch); return; }
     catch (error) {
       $("configNotice").classList.remove("hidden");
       $("configNotice").textContent = "Could not load this match: " + error.message;
+    }
+  } else if (sharedTournament) {
+    try {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sharedTournament)) {
+        throw new Error("The shared tournament link is invalid.");
+      }
+      state.selectedTournamentTab = sharedView === "metrics" ? "metrics" : "matches";
+      await openTournament(sharedTournament);
+      return;
+    } catch (error) {
+      $("configNotice").classList.remove("hidden");
+      $("configNotice").textContent = "Could not load the shared tournament: " + error.message;
     }
   }
   await loadHome();
@@ -1558,11 +1575,26 @@ async function finishMatch(alreadyConfirmed) {
 }
 async function shareMatch() {
   const url = new URL(window.location.href);
+  url.searchParams.delete("tournament");
+  url.searchParams.delete("view");
   url.searchParams.set("match", state.match.id);
   try {
     await navigator.clipboard.writeText(url.toString());
     toast("Live score link copied");
   } catch (_) { window.prompt("Copy the live score link:", url.toString()); }
+}
+async function shareTournamentMetrics() {
+  if (!state.tournament?.id) return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete("match");
+  url.searchParams.set("tournament", state.tournament.id);
+  url.searchParams.set("view", "metrics");
+  try {
+    await navigator.clipboard.writeText(url.toString());
+    toast("Tournament metrics link copied");
+  } catch (_) {
+    window.prompt("Copy the tournament metrics link:", url.toString());
+  }
 }
 function checkMilestones(ball, oldTeamTotal, oldPlayerRuns) {
   const innings = currentInnings();
@@ -1920,6 +1952,7 @@ function attachEvents() {
   bind("tournamentNewMatchBtn","click",() => withLoader("Preparing match setup…", startMatchSetup).catch(showError));
   bind("refreshTournamentBtn","click",() => withLoader("Refreshing fixtures…", refreshTournament).catch(showError));
   bind("refreshMetricsBtn","click",() => renderTournamentMetrics().catch(showError));
+  bind("shareMetricsBtn","click",shareTournamentMetrics);
   bind("openDeleteTournamentBtn","click",openDeleteTournamentSheet);
   bind("closeDeleteTournamentBtn","click",closeDeleteTournamentSheet);
   bind("cancelDeleteTournamentBtn","click",closeDeleteTournamentSheet);
