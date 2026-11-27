@@ -1199,22 +1199,43 @@ function renderScore() {
       opening.bowlerId !== current.previousOverBowlerId) {
     current.bowlerId = opening.bowlerId;
   }
-  const lastDelivery = activeBalls(innings.innings_no).slice(-1)[0];
-  const afterWicket = !!lastDelivery?.wicket;
-  let strikerSelection = current.strikerId || (afterWicket ? "" : opening.strikerId);
-  let nonStrikerSelection = current.nonStrikerId || (afterWicket ? "" : opening.nonStrikerId);
+  const dismissedBatterIds = new Set(
+    activeBalls(innings.innings_no)
+      .filter(ball => ball.wicket && ball.dismissed_batsman_id)
+      .map(ball => ball.dismissed_batsman_id)
+  );
+  const isAvailableBatter = playerId => !!playerId && !dismissedBatterIds.has(playerId);
+  // After a wicket, the engine intentionally leaves the dismissed end blank.
+  // Preserve any replacement the scorer has selected in the dropdown, but never
+  // fall back to the dismissed batter from the previous delivery.
+  let strikerSelection = isAvailableBatter(current.strikerId)
+    ? current.strikerId
+    : (isAvailableBatter(opening.strikerId) ? opening.strikerId : "");
+  let nonStrikerSelection = isAvailableBatter(current.nonStrikerId)
+    ? current.nonStrikerId
+    : (isAvailableBatter(opening.nonStrikerId) ? opening.nonStrikerId : "");
   if (strikerSelection && nonStrikerSelection && strikerSelection === nonStrikerSelection) {
     // Repair invalid legacy/current UI state before it can be confirmed.
     nonStrikerSelection = "";
     state.lineupConfirmed = false;
   }
-  state.current = current;
-  const strikerOptions = batting.filter(player => player.id !== nonStrikerSelection);
-  const nonStrikerOptions = batting.filter(player => player.id !== strikerSelection);
+  const strikerOptions = batting.filter(player =>
+    player.id !== nonStrikerSelection && !dismissedBatterIds.has(player.id)
+  );
+  const nonStrikerOptions = batting.filter(player =>
+    player.id !== strikerSelection && !dismissedBatterIds.has(player.id)
+  );
   fillSelect($("striker"), strikerOptions, strikerSelection, "Select striker");
   fillSelect($("nonStriker"), nonStrikerOptions, nonStrikerSelection, "Select non-striker");
   const availableBowlers = current.needsNewBowler ? bowling.filter(p => p.id !== current.previousOverBowlerId) : bowling;
   fillSelect($("bowler"), availableBowlers, current.bowlerId || opening.bowlerId, current.needsNewBowler ? "Choose new bowler" : "Select bowler");
+
+  // The selected dropdown values are the pending lineup until the scorer confirms.
+  // Keep them in state.current so the post-wicket replacement is usable for scoring.
+  current.strikerId = $("striker").value || "";
+  current.nonStrikerId = $("nonStriker").value || "";
+  current.bowlerId = $("bowler").value || "";
+  state.current = current;
   $("coinResultLarge").textContent = state.match.toss_result ? state.match.toss_result.toUpperCase() : "TOSS";
   const scorer = localScorer();
   const allOut = stats.wickets >= Math.max(1, batting.length - 1);
@@ -1248,7 +1269,7 @@ function renderScore() {
   $("striker").classList.toggle("needs-attention", needsBatterConfirm);
   $("nonStriker").classList.toggle("needs-attention", needsBatterConfirm);
   const canSubmit = canScore && state.lineupConfirmed && !needsBatterConfirm &&
-    !!current.strikerId && !!current.nonStrikerId && !!current.bowlerId && !state.saving;
+    !!$("striker").value && !!$("nonStriker").value && !!$("bowler").value && !state.saving;
   document.querySelectorAll("[data-quick-run],#openExtrasBtn,#openWicketBtn,#confirmQuickExtrasBtn,#confirmQuickWicketBtn")
     .forEach(button => { button.disabled = !canSubmit; });
   $("undoBtn").disabled = !scorer || !activeBalls(innings.innings_no).length || state.saving;
@@ -1269,7 +1290,7 @@ function confirmLineup() {
   if (!localScorer()) { toast("Join the tournament before scoring"); return; }
   if (!$("striker").value || !$("nonStriker").value || !$("bowler").value ||
       $("striker").value === $("nonStriker").value) {
-    toast("Choose two different opening batters and a bowler");
+    toast("Choose two different batters and a bowler");
     return;
   }
   state.lineupConfirmed = true;
