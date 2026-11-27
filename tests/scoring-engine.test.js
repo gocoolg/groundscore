@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  buildDelivery, deliveryNotation, inningsStats, currentBattingState, chaseProgress,
+  buildDelivery, deliveryNotation, inningsStats, currentBattingState, currentWicketBatters, chaseProgress,
   battingScorecard, bowlingScorecard
 } from "../js/scoring-engine.js";
 
@@ -335,4 +335,39 @@ test("innings ends when the final batter is dismissed", () => {
   });
   assert.equal(afterAllOut.ok, false);
   assert.match(afterAllOut.errors.join(" "), /all out/i);
+});
+
+
+test("wicket popup uses the newly selected replacement batter before the next delivery is saved", () => {
+  const firstWicket = buildDelivery({
+    matchId: "match-1", inningsNo: 1, balls: [], players,
+    battingTeam: "team1", bowlingTeam: "team2", oversLimit: 10,
+    strikerId: "a", nonStrikerId: "b", bowlerId: "d",
+    scorerName: "Scorer", wicket: "wicket", dismissedBatsmanId: "a"
+  });
+  assert.equal(firstWicket.ok, true, firstWicket.errors?.join("; "));
+
+  // The first wicket's saved next_striker_id is blank. The scorer has now
+  // selected Charan as the incoming striker, but no new delivery is saved yet.
+  const crease = currentWicketBatters([firstWicket.ball], 1, {
+    strikerId: "c",
+    nonStrikerId: "b",
+    bowlerId: "e"
+  });
+  assert.deepEqual(crease, { strikerId: "c", nonStrikerId: "b" });
+});
+
+test("wicket popup never offers a batter already dismissed, even if still selected in the UI", () => {
+  const firstWicket = buildDelivery({
+    matchId: "match-1", inningsNo: 1, balls: [], players,
+    battingTeam: "team1", bowlingTeam: "team2", oversLimit: 10,
+    strikerId: "a", nonStrikerId: "b", bowlerId: "d",
+    scorerName: "Scorer", wicket: "wicket", dismissedBatsmanId: "a"
+  });
+  const crease = currentWicketBatters([firstWicket.ball], 1, {
+    strikerId: "a",
+    nonStrikerId: "b",
+    bowlerId: "e"
+  });
+  assert.deepEqual(crease, { strikerId: "", nonStrikerId: "b" });
 });
