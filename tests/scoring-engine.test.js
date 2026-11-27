@@ -283,27 +283,36 @@ test("last remaining batter can continue scoring alone without a non-striker", (
 });
 
 test("last batter stays on strike after odd runs and legal over end", () => {
-  const fifth = Array.from({ length: 5 }, (_, i) => ({
-    innings_no: 1, delivery_number: i + 1, ball_number: i + 1,
-    over_number: 0, striker_id: "b", non_striker_id: null, bowler_id: "d",
-    extra_type: null, total_runs: 0, runs_off_bat: 0, wicket: null,
-    next_striker_id: "b", next_non_striker_id: null
-  }));
-  const dismissed = [
-    { innings_no: 1, wicket: "wicket", dismissed_batsman_id: "a" },
-    { innings_no: 1, wicket: "wicket", dismissed_batsman_id: "c" }
+  const rows = [
+    { innings_no: 1, delivery_number: 1, ball_number: 1, over_number: 0,
+      striker_id: "a", non_striker_id: "b", bowler_id: "d", extra_type: null,
+      total_runs: 0, runs_off_bat: 0, wicket: "wicket", dismissed_batsman_id: "a",
+      next_striker_id: null, next_non_striker_id: "b" },
+    { innings_no: 1, delivery_number: 2, ball_number: 2, over_number: 0,
+      striker_id: "c", non_striker_id: "b", bowler_id: "d", extra_type: null,
+      total_runs: 0, runs_off_bat: 0, wicket: "wicket", dismissed_batsman_id: "c",
+      next_striker_id: null, next_non_striker_id: "b" },
+    ...Array.from({ length: 3 }, (_, i) => ({
+      innings_no: 1, delivery_number: i + 3, ball_number: i + 3,
+      over_number: 0, striker_id: "b", non_striker_id: null, bowler_id: "d",
+      extra_type: null, total_runs: 0, runs_off_bat: 0, wicket: null,
+      next_striker_id: "b", next_non_striker_id: null
+    }))
   ];
-  const rows = [...dismissed, ...fifth];
   const next = buildDelivery({
     matchId: "match-1", inningsNo: 1, balls: rows, players,
     battingTeam: "team1", bowlingTeam: "team2", oversLimit: 10,
-    strikerId: "b", nonStrikerId: "", bowlerId: "e",
+    strikerId: "b", nonStrikerId: "", bowlerId: "d",
     scorerName: "Scorer", batRuns: 1
   });
   assert.equal(next.ok, true, next.errors?.join("; "));
+  assert.equal(next.ball.ball_number, 6);
   assert.equal(next.ball.next_striker_id, "b");
   assert.equal(next.ball.next_non_striker_id, "");
-  assert.equal(next.state.needsNewBowler, true);
+  const afterOverEnd = currentBattingState([...rows, next.ball], 1);
+  assert.equal(afterOverEnd.needsNewBowler, true);
+  assert.equal(afterOverEnd.strikerId, "b");
+  assert.equal(afterOverEnd.nonStrikerId, "");
 });
 
 test("innings ends when the final batter is dismissed", () => {
