@@ -1169,7 +1169,6 @@ function renderScore() {
   renderFullscreenScoreboard(stats, chase, requiredRate, innings);
   $("scoreTournamentName").textContent = state.tournament?.name || "No tournament";
   $("detailMatchTitle").textContent = state.match.team1 + " vs " + state.match.team2;
-  $("scorecardInnings").textContent = teamName(innings.batting_team) + " · " + stats.total + "/" + stats.wickets;
   const tossDetails = state.match.toss_call && state.match.toss_result
     ? teamName(state.match.toss_winner === state.match.team1 ? "team1" : "team2") + " won · Team 1 called " +
       state.match.toss_call.toUpperCase() + " · Coin landed " + state.match.toss_result.toUpperCase() +
