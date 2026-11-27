@@ -204,9 +204,11 @@ export function buildDelivery(input) {
     delivery_number: highestSequence + 1,
     over_number: overNo,
     ball_number: ballNo,
-    striker_id: striker,
-    non_striker_id: nonStriker,
-    bowler_id: bowler,
+    // UUID foreign-key columns must receive null, never an empty string.
+    // The non-striker is intentionally absent while the final batter bats alone.
+    striker_id: striker || null,
+    non_striker_id: nonStriker || null,
+    bowler_id: bowler || null,
     runs: bat,
     runs_off_bat: bat,
     extra_type: extraType || null,
@@ -221,8 +223,8 @@ export function buildDelivery(input) {
     wicket: wicket || null,
     dismissed_batsman_id: wicket ? dismissedBatsmanId : null,
     crossed_before_wicket: !!(wicket === "run out" && crossedBeforeWicket),
-    next_striker_id: nextStriker,
-    next_non_striker_id: nextNonStriker,
+    next_striker_id: nextStriker || null,
+    next_non_striker_id: nextNonStriker || null,
     next_batter_id: incomingBatterId || null,
     scorer_name: scorerName.trim()
   };
