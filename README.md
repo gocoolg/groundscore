@@ -276,8 +276,6 @@ The Edge Function is not part of GitHub Pages deployment and must be deployed se
 
 ---
 
----
-
 ## Cricket scoring conventions
 
 - Wides and no-balls are not legal deliveries; byes and leg-byes are legal deliveries.
