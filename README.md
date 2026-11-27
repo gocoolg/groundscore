@@ -40,6 +40,7 @@ GroundScore is a mobile-first cricket scoring and tournament platform for local 
 - Manage tournament members, teams and saved squads.
 - Maintain fixtures and results in a tournament centre.
 - View league standings and net run rate calculated from completed matches.
+- Compare tournament-wide player leaders for runs, wickets, sixes, fours and dot balls.
 
 ### Teams and player directory
 - Save a team's squad and reuse it when creating future matches.
@@ -56,8 +57,8 @@ GroundScore is a mobile-first cricket scoring and tournament platform for local 
 ### Live scoring and scorecards
 - Sticky live scoreboard with score, overs, current batters, bowler, current run rate, required run rate and chase target.
 - One-tap scoring for 0, 1, 2, 3, 4 and 6.
-- Extras for wides, no-balls, byes and leg-byes.
-- Wicket recording for bowled, caught, run out, LBW, stumped and hit wicket.
+- Quick extras popup for wides and no-balls, with a one-run penalty applied automatically and 0–6 additional-run chips.
+- Quick generic wicket popup with the striker selected by default; choose the dismissed batter, record the wicket, then select the replacement batter at the crease.
 - Automatic strike rotation based on completed-run parity and end changes after six legal deliveries.
 - New-batter confirmation after a wicket and bowler selection at the start of a new over.
 - Batting and bowling scorecards, extras, fall of wickets and ball-by-ball commentary.
@@ -185,6 +186,7 @@ If the project was set up using an older version of GroundScore, apply any featu
 | [`add_coin_toss_columns.sql`](supabase/add_coin_toss_columns.sql) | Adds coin-toss metadata to older match tables. |
 | [`20261123_player_directory.sql`](supabase/migrations/20261123_player_directory.sql) | Creates and backfills reusable player-name suggestions. |
 | [`20261124_scorer_directory.sql`](supabase/migrations/20261124_scorer_directory.sql) | Creates and backfills the separate scorer directory. |
+| [`20261127_simplified_wicket_and_metrics.sql`](supabase/migrations/20261127_simplified_wicket_and_metrics.sql) | Allows a generic `wicket` value for the quick wicket action. |
 | [`20261125_site_viewer_presence.sql`](supabase/migrations/20261125_site_viewer_presence.sql) | Adds a private heartbeat table and RPC for the homepage live viewer count. |
 | [`20261120_delete_tournament_admin.sql`](supabase/migrations/20261120_delete_tournament_admin.sql) | Creates the restricted database function used by the delete Edge Function. |
 | [`20261120_revoke_public_deletes.sql`](supabase/migrations/20261120_revoke_public_deletes.sql) | Revokes direct hard-delete privileges from the anonymous browser role. |
