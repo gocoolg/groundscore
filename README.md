@@ -41,6 +41,7 @@ GroundScore is a mobile-first cricket scoring and tournament platform for local 
 - Maintain fixtures and results in a tournament centre.
 - View league standings and net run rate calculated from completed matches.
 - Compare tournament-wide player leaders for runs, wickets, sixes, fours and dot balls.
+- Share a direct tournament metrics link using `?tournament=<tournament-id>&view=metrics`; recipients open directly on that tournament's Metrics tab.
 
 ### Teams and player directory
 - Save a team's squad and reuse it when creating future matches.
