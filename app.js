@@ -1904,6 +1904,7 @@ function attachEvents() {
   bind("tournamentJoinBtn","click",() => withLoader("Opening player check-in…", () => openJoin(state.tournament.id)).catch(showError));
   bind("tournamentNewMatchBtn","click",() => withLoader("Preparing match setup…", startMatchSetup).catch(showError));
   bind("refreshTournamentBtn","click",() => withLoader("Refreshing fixtures…", refreshTournament).catch(showError));
+  bind("refreshMetricsBtn","click",() => renderTournamentMetrics().catch(showError));
   bind("openDeleteTournamentBtn","click",openDeleteTournamentSheet);
   bind("closeDeleteTournamentBtn","click",closeDeleteTournamentSheet);
   bind("cancelDeleteTournamentBtn","click",closeDeleteTournamentSheet);
@@ -2007,9 +2008,7 @@ function attachEvents() {
   document.querySelectorAll("[data-quick-run]").forEach(button =>
     button.addEventListener("click", () => quickRun(button.dataset.quickRun, button))
   );
-  ["extrasSheet","wicketSheet"].forEach(id => $(id).addEventListener("click", event => {
-    if (event.target.id === id) closeSheets();
-  }));
+
   window.addEventListener("online", setNetwork);
   window.addEventListener("offline", setNetwork);
   window.addEventListener("beforeunload", stopPolling);
